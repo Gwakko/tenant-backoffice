@@ -77,17 +77,30 @@ lint-go:
 test-unit:
 	cd backend && $(GO) go test -race $(GOTESTFLAGS) ./...
 
-# Hosts must come from the environment, never hard-coded into code or scripts.
+# Hosts must come from the environment, never hard-coded into code or scripts (T-CI-04).
+# Service hostnames in connection strings, plus localhost/127.0.0.1 literals in tests and web sources.
+CHECK_HOSTS_PATHS := $(wildcard web/e2e web/src)
 check-hosts:
 	@if grep -rnE '@(postgres|redis)[:/]' backend --include='*.go' --include='*.sh' --include='*.yaml'; then \
 		echo "check-hosts: hard-coded service host found"; exit 1; fi
+	@if grep -rnE 'localhost:[0-9]+|127\.0\.0\.1' backend --include='*_test.go'; then \
+		echo "check-hosts: hard-coded address in a Go test"; exit 1; fi
+	@if [ -n "$(CHECK_HOSTS_PATHS)" ] && grep -rnE 'localhost:[0-9]+|127\.0\.0\.1' $(CHECK_HOSTS_PATHS); then \
+		echo "check-hosts: hard-coded address in web sources"; exit 1; fi
+	@echo "check-hosts: ok"
 
+# Local CI: Go targets run inside go-tools (on the host, containers are not nested);
+# web targets run on the host and go through $(NPM) into web-tools.
 ci: .env
-	docker compose run --rm -T go-tools make ci-go
-	docker compose run --rm -T web-tools make ci-web
+	docker compose run --rm -T go-tools make -C /workspace ci-go GO= NPM= PSQL=
+	$(MAKE) ci-web
 
+# Runs in the current environment (used on the Actions runner, with GO= NPM= PSQL=).
 ci-inner: ci-go ci-web
 
-ci-go: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api ec-check
+# Goal list per spec 08 section 5: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api ec-check.
+# gen-check (M2.x), test-iso (M3.x), test-api (M4.x) and ec-check (M1.7) are still stubs and are added as they land.
+ci-go: lint-go check-hosts test-unit migrate-roundtrip test-int
 
-ci-web: typecheck lint-web test-web build
+# Goal list per spec: npm ci typecheck lint-web test-web build. Only test-web exists until the web client (M5.x).
+ci-web: test-web

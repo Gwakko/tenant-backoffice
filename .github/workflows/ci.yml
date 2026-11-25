@@ -1,0 +1,84 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      # Processes run on the runner host; the service container is reached through its published port.
+      TB_TEST_DB_ADMIN_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      # The web client does not exist yet (no lockfile to cache); add `cache: npm`
+      # and `cache-dependency-path: web/package-lock.json` with M5.x.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # Installs the linter binary only; `make lint-go` runs it.
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          install-only: true
+
+      - name: Run CI targets on the host
+        run: make ci-inner GO= NPM= PSQL="psql -h 127.0.0.1"
+
+  # Enabled with M6.2 (needs the full compose stack, seed data and Playwright).
+  #
+  # e2e:
+  #   needs: ci
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 25
+  #   env:
+  #     # Keep published ports clear of the runner's own processes.
+  #     TB_POSTGRES_HOST_PORT: "55432"
+  #     TB_API_HOST_PORT: "58080"
+  #     TB_WEB_HOST_PORT: "8088"
+  #     E2E_BASE_URL: http://127.0.0.1:8088
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - uses: actions/setup-node@v6
+  #       with:
+  #         node-version: 24
+  #     - run: make env keys
+  #     - run: docker compose up -d --build --wait postgres api web
+  #     - run: make seed
+  #     - run: npx playwright install --with-deps chromium
+  #       working-directory: web
+  #     - run: make e2e-inner
+  #     - uses: actions/upload-artifact@v5
+  #       if: failure()
+  #       with:
+  #         name: playwright-report
+  #         path: web/playwright-report
