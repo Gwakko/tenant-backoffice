@@ -96,6 +96,21 @@ func newDB(tb testing.TB, fromTemplate bool) *DB {
 	return db
 }
 
+// URL returns a connection URL of this database with the admin credentials of
+// TB_TEST_DB_ADMIN_URL (tests that need a URL, not a pool).
+func (d *DB) URL(tb testing.TB) string {
+	tb.Helper()
+	adminURL, ok := config.TestDBAdminURL()
+	if !ok {
+		tb.Fatal("TB_TEST_DB_ADMIN_URL is required")
+	}
+	u, err := withDatabase(adminURL, d.Name)
+	if err != nil {
+		tb.Fatalf("testkit: %v", err)
+	}
+	return u
+}
+
 // NewAppPool opens an extra pool as tb_app with at most maxConns connections
 // (a pool of one proves that a connection is reused between transactions). The
 // pool is closed when the test ends.

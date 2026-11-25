@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/httpapi"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/postgres"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/config"
 )
 
@@ -71,4 +72,16 @@ func (a *API) Run(ctx context.Context) error {
 		return fmt.Errorf("http shutdown: %w", err)
 	}
 	return nil
+}
+
+// PostgresConfig maps the database settings of the process config to the
+// postgres adapter config.
+func PostgresConfig(cfg config.Config) postgres.Config {
+	return postgres.Config{
+		URL:              cfg.DB.URL,
+		MaxConns:         cfg.DB.MaxConns,
+		StatementTimeout: cfg.DB.StatementTimeout,
+		IdleInTxTimeout:  cfg.DB.IdleInTxTimeout,
+		ConnectTimeout:   cfg.DB.ConnectTimeout,
+	}
 }

@@ -33,6 +33,14 @@ const (
 	RoleNotGrantable Code = "role_not_grantable"
 )
 
+// Codes shared by every use case: absent or hidden objects, missing rights and
+// an unavailable store.
+const (
+	NotFound    Code = "not_found"
+	Forbidden   Code = "forbidden"
+	Unavailable Code = "db_unavailable"
+)
+
 // Error is a domain error with a code, a human-readable message and optional
 // per-field details.
 type Error struct {
@@ -79,4 +87,23 @@ func CodeOf(err error) (Code, bool) {
 		return e.Code, true
 	}
 	return "", false
+}
+
+// NotFoundError is the single answer for an object that does not exist and for
+// one that exists outside the actor's subtrees: the two must be
+// indistinguishable, so the message names only the kind of object, never an id.
+func NotFoundError(what string) Error {
+	return New(NotFound, what+" not found")
+}
+
+// ForbiddenError means the object is visible to the actor but the role does not
+// allow the action.
+func ForbiddenError(message string) Error {
+	return New(Forbidden, message)
+}
+
+// UnavailableError means the store could not complete the operation (for example
+// a lost connection); the operation had no effect and may be retried.
+func UnavailableError() Error {
+	return New(Unavailable, "storage is temporarily unavailable")
 }

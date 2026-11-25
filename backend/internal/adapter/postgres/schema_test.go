@@ -12,9 +12,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/testkit"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/port"
 )
 
 type nodeRow struct {
@@ -157,4 +161,64 @@ END $$`)
 		require.Contains(t, problems, "level_mismatch")
 		require.Contains(t, problems, "path_mismatch")
 	})
+}
+
+// Test-ID: T-I-12
+func TestTreeConstraintsViaRepo(t *testing.T) {
+	w := newWorld(t)
+	insert := func(n node.Node) error {
+		return w.try("adminA", func(ctx context.Context, tx port.Tx) error { return w.repo.Insert(ctx, tx, n) })
+	}
+	name := func(s string) node.Name {
+		nm, err := node.ParseName(s)
+		require.NoError(t, err)
+		return nm
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	a1, a := w.nodes["A1"], w.nodes["A"]
+
+	// Entities built by hand, bypassing node.NewChild (which would refuse them):
+	// the database is the second line. The adapter reports the rejection as
+	// not_found and logs the real reason at error level.
+	badID := func() node.ID { return node.ID(uuid.Must(uuid.NewV7())) }
+	cases := map[string]func() node.Node{
+		"unit directly under a partner": func() node.Node {
+			id := badID()
+			return node.Node{ID: id, Type: node.TypeUnit, ParentID: &a.ID, Path: a.Path.Append(id), Name: name("x1"), Status: node.StatusActive, CreatedAt: now, UpdatedAt: now}
+		},
+		"unit child of a unit": func() node.Node {
+			u := w.nodes["A1u1"]
+			id := badID()
+			return node.Node{ID: id, Type: node.TypeUnit, ParentID: &u.ID, Path: u.Path.Append(id), Name: name("x2"), Status: node.StatusActive, CreatedAt: now, UpdatedAt: now}
+		},
+		"path that is not the parent path plus the own label": func() node.Node {
+			id := badID()
+			return node.Node{ID: id, Type: node.TypeUnit, ParentID: &a1.ID, Path: w.nodes["A"].Path.Append(id), Name: name("x3"), Status: node.StatusActive, CreatedAt: now, UpdatedAt: now}
+		},
+		"unknown parent": func() node.Node {
+			ghost, id := badID(), badID()
+			return node.Node{ID: id, Type: node.TypeUnit, ParentID: &ghost, Path: a1.Path.Append(id), Name: name("x4"), Status: node.StatusActive, CreatedAt: now, UpdatedAt: now}
+		},
+	}
+	for label, build := range cases {
+		t.Run(label, func(t *testing.T) {
+			err := insert(build())
+			require.ErrorIs(t, err, apperr.New(apperr.NotFound, ""), label)
+		})
+	}
+	assert.Contains(t, w.logs.String(), `"sqlstate":"23514"`)
+	assert.Contains(t, w.logs.String(), `"level":"ERROR"`)
+
+	// A node moved through the repository keeps the tree consistent.
+	var a2 node.Node
+	require.NoError(t, insert(w.newChild("A", node.TypeCompany, "A2")))
+	a2 = w.lookupChild("A", "A2")
+	w.do("adminA", func(ctx context.Context, tx port.Tx) {
+		u1, err := w.repo.Get(ctx, tx, w.id("A1u1"))
+		require.NoError(t, err)
+		plan, err := u1.PlanMove(a2)
+		require.NoError(t, err)
+		require.NoError(t, w.repo.Move(ctx, tx, plan, 1, now))
+	})
+	assert.Empty(t, w.violations())
 }

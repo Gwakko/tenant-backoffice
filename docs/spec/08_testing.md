@@ -78,6 +78,7 @@
 | T-U-37 | `domain/settings/validate_test.go TestInvalidValues` | | EC-139 |
 | T-U-38 | `domain/settings/resolve_test.go TestConstraintsAcrossChain` | AND, min | EC-140, EC-141 |
 | T-U-39 | `usecase/settings/unset_test.go TestUnsetFallsBack` | | EC-142 |
+| T-U-40 | `usecase/authz/authz_test.go TestRequireNotFoundVersusForbidden` | нет роли (скрытый и несуществующий узел) -> одинаковый `not_found`; роль без права -> `forbidden`; вся матрица роль × право через `Require` | EC-45, EC-54 |
 
 Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpapi` курсор и хэш) входят в `make test-unit`.
 
@@ -98,7 +99,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-I-09 | `node_repo_test.go TestNameKeyUnique` | | EC-23 |
 | T-I-10 | `move_test.go TestMoveNameConflict` | | EC-25 |
 | T-I-11 | `node_repo_test.go TestChildrenLimit` (1000 детей вставляются пачкой под `tb_owner`) | | EC-26 |
-| T-I-12 | `schema_test.go TestTreeConstraints` | CHECK и триггер | EC-27 |
+| T-I-12 | `schema_test.go TestTreeConstraints`, `TestTreeConstraintsViaRepo` | CHECK и триггер; те же нарушения через `NodeRepo` (ответ `not_found` + лог `error`); перенос не нарушает дерево | EC-27 |
 | T-I-13 | `authz_test.go TestMultiBranchUser` | | EC-32 |
 | T-I-14 | `member_test.go TestLastRootOwner` | | EC-35 |
 | T-I-15 | `member_concurrency_test.go TestOwnersRemoveEachOther` | | EC-36 |
@@ -134,7 +135,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-I-45 | `schema_test.go TestNegativeBalanceRejected` | | EC-138 |
 | T-I-46 | `settings_test.go TestSettingsChainAndHiddenSource` | | EC-140, EC-143 |
 
-Сценарные тесты без EC (обязательны, но в `eccheck` не участвуют): T-I-50 `TestRepositoriesRoundTrip` (CRUD каждого репозитория и маппинг row↔entity).
+Сценарные тесты без EC (обязательны, но в `eccheck` не участвуют): T-I-50 `TestRepositoriesRoundTrip` (CRUD каждого репозитория и маппинг row↔entity), дополняется каждой задачей, добавляющей репозиторий или порт БД; на M2.3 сюда же относится `TestTreeLockSerialises` (вторая транзакция ждёт `TreeLock`, пока первая не завершится).
 
 ### 3.3 Изоляция тенантов (T-ISO) — главный критерий
 
@@ -152,10 +153,10 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-ISO-08 | `operations_test.go TestForeignOperations` | | EC-53 |
 | T-ISO-09 | `enumeration_test.go TestIDEnumeration` (100 id: 50 реальных B, 50 случайных) | | EC-54 |
 | T-ISO-10 | `members_test.go TestForeignMembers` | | EC-34, EC-55 |
-| T-ISO-11 | `rls_test.go TestRLSWithoutUseCaseChecks` | | EC-56 |
+| T-ISO-11 | `rls_test.go TestRLSWithoutUseCaseChecks`, `adapters_test.go TestRLSThroughRepositories` | сырой SQL и настоящие репозитории (`NodeRepo`, `Checker`) под актором A против B; 42501/23514 -> `not_found` + лог `error` | EC-56 |
 | T-ISO-12 | `rls_test.go TestNoActorSeesNothing` | | EC-57 |
-| T-ISO-13 | `rls_test.go TestPoolDoesNotLeakActor` (`pgxpool` MaxConns=1) | | EC-58 |
-| T-ISO-14 | `rls_test.go TestErrorAndPanicResetActor` | | EC-59 |
+| T-ISO-13 | `adapters_test.go TestPoolDoesNotLeakActor` (`pgxpool` MaxConns=1, настоящий `TxRunner`) | | EC-58 |
+| T-ISO-14 | `adapters_test.go TestErrorAndPanicResetActor` | ошибка, panic, отмена контекста, ошибка оператора | EC-59 |
 | T-ISO-15 | `rls_test.go TestRolesAndPoliciesConfigured` (запросы к `pg_roles`, `pg_class`, `pg_policies`) | | EC-60 |
 | T-ISO-16 | `members_test.go TestMultiBranchUserSeenFromA` | | EC-61 |
 | T-ISO-17 | `pagination_test.go TestCursorBoundToScope` | | EC-62 |

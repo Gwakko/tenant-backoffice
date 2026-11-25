@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -16,6 +17,19 @@ type Config struct {
 	HTTPAddr  string `env:"TB_HTTP_ADDR,required,notEmpty"`
 	LogLevel  string `env:"TB_LOG_LEVEL" envDefault:"info"`
 	LogFormat string `env:"TB_LOG_FORMAT" envDefault:"json"`
+	DB        Database
+}
+
+// Database holds the runtime connection settings of the application database.
+// URL is optional here (the process starts without a database until the
+// services that need one are wired); the postgres adapter validates it.
+type Database struct {
+	// URL connects as the application role tb_app.
+	URL              string        `env:"TB_DB_URL"`
+	MaxConns         int32         `env:"TB_DB_MAX_CONNS" envDefault:"10"`
+	StatementTimeout time.Duration `env:"TB_DB_STATEMENT_TIMEOUT" envDefault:"5s"`
+	IdleInTxTimeout  time.Duration `env:"TB_DB_IDLE_IN_TX_TIMEOUT" envDefault:"10s"`
+	ConnectTimeout   time.Duration `env:"TB_DB_CONNECT_TIMEOUT" envDefault:"30s"`
 }
 
 // Load reads and validates the environment. Errors name the offending variable.
