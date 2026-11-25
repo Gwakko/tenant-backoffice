@@ -138,7 +138,7 @@ M6.1 (после M4.*, M5.*) -> M6.2 ; M6.3 (после всех тестовы�
 ### M2.7 Изоляция: уровень репозиториев
 - **Цель:** фабрика `isolation.World`, T-ISO-11…T-ISO-15 полностью, T-ISO-19 (на уровне use case, HTTP-вариант добавит M4.6).
 - **Вход:** `02` §5; `07` группа C; `08` §2, §3.3.
-- **На выходе:** `backend/internal/isolation/{world.go,rls_test.go,nodes_test.go}`.
+- **На выходе:** `backend/internal/isolation/{world.go,harness_test.go,nodes_test.go,move_test.go,members_test.go,enumeration_test.go,pagination_test.go,layers_test.go,rls_test.go}`; T-ISO-01…04, 09, 10, 16…19 на уровне use case.
 - **Критерии приёмки:** каждый тест сравнивает снимки данных до/после.
 - **Проверка:** `make test-iso`.
 

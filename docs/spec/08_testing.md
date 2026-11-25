@@ -154,13 +154,13 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 
 ### 3.3 Изоляция тенантов (T-ISO) — главный критерий
 
-`backend/internal/isolation/`, фабрика `World` (§2). T-ISO-01…10, 16…19 идут через HTTP (`httptest` + реальный `app.BuildAPI`), T-ISO-11…15 и 20…22 — на уровне репозиториев и пула.
+`backend/internal/isolation/`, фабрика `World` (§2). T-ISO-01…04, 09, 10, 16…19 реализованы на уровне use case с настоящими `TxRunner`, `Checker` и репозиториями (M2.7); HTTP-вариант (`httptest` + реальный `app.BuildAPI`) добавит M4.6; T-ISO-05…08 появятся с M3 и M4. T-ISO-11…15 и 20…22 — на уровне репозиториев и пула.
 
 | ID | Имя | Проверяет | EC |
 |---|---|---|---|
 | T-ISO-01 | `nodes_test.go TestGetForeignNodeIs404` (тело сравнивается с 404 случайного UUID) | | EC-46 |
 | T-ISO-02 | `nodes_test.go TestListsExcludeForeignNodes` | | EC-47 |
-| T-ISO-03 | `nodes_test.go TestMutateForeignNode` (табличный по 7 эндпоинтам) | | EC-48 |
+| T-ISO-03 | `nodes_test.go TestMutateForeignNode` (табличный по операциям use cases: rename, deactivate, activate, delete, create child, move; settings PUT/DELETE придут в M3.5) | | EC-48 |
 | T-ISO-04 | `move_test.go TestMoveAcrossBranches` | | EC-49 |
 | T-ISO-05 | `balance_test.go TestForeignBalanceOps` | | EC-50 |
 | T-ISO-06 | `reports_test.go TestForeignReports` | | EC-51 |
@@ -174,12 +174,13 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-ISO-14 | `adapters_test.go TestErrorAndPanicResetActor` | ошибка, panic, отмена контекста, ошибка оператора | EC-59 |
 | T-ISO-15 | `rls_test.go TestRolesAndPoliciesConfigured` (запросы к `pg_roles`, `pg_class`, `pg_policies`) | | EC-60 |
 | T-ISO-16 | `members_test.go TestMultiBranchUserSeenFromA` | | EC-61 |
-| T-ISO-17 | `pagination_test.go TestCursorBoundToScope` | | EC-62 |
+| T-ISO-17 | `pagination_test.go TestCursorBoundToScope` | курсоры узлов и участников несут только позицию сортировки: область решается заново на каждой странице (Checker и RLS), чужой курсор не открывает чужих данных; строгий `400 invalid_cursor` относится к спискам операций и аудита (M4) | EC-62 |
 | T-ISO-18 | `move_test.go TestCrossBranchMoveByRootOwner` | | EC-63 |
-| T-ISO-19 | `nodes_test.go TestDescendantRoleDoesNotSeeAncestor` | | EC-30 |
+| T-ISO-19 | `nodes_test.go TestDescendantRoleDoesNotSeeAncestor` | включая операции с участниками | EC-30 |
 | T-ISO-20 | `rls_writes_test.go TestNodeWritesCannotEscapeBranch`: прямой `UPDATE nodes SET path` в чужую ветку и на путь предка выше корня доступа (42501), смена `parent_id` на узел чужой ветки (23514 или 42501), `DELETE` узлов чужой ветки (0 строк); данные не меняются. Примечание: `WITH CHECK` политики `nodes_update` совпадает с `USING` политики SELECT, а PostgreSQL применяет SELECT-политику и к новой строке UPDATE, поэтому ослабление одного `WITH CHECK` не наблюдаемо (эквивалентная мутация); тест фиксирует поведение в целом | | EC-144 |
 | T-ISO-21 | `rls_writes_test.go TestUserPasswordWritePath`: прямой `UPDATE users SET password_hash` под `tb_app` даёт 42501; `UPDATE` разрешён только на `status`, `token_version`; `tb_set_own_password` меняет хеш только актора и не трогает других (в том числе видимых), без актора ничего не меняет; `SELECT *` по `users` падает; `INSERT` пользователя с начальным хешем работает | | EC-145 |
 | T-ISO-22 | `rls_writes_test.go TestAuthByIDHasNoPasswordHash`: у `tb_auth_user_by_id` нет колонки `password_hash` (`id, status, token_version`), у `tb_auth_user_by_email` она есть | | EC-146 |
+| T-ISO-23 | `layers_test.go TestTwoLayerIsolation` | матрица слоёв: оба слоя; только use case и Checker (пул владельца, RLS не действует); только RLS (репозитории напрямую под `tb_app`) | EC-56 |
 
 ### 3.4 API (T-A)
 

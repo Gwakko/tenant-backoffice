@@ -89,7 +89,7 @@ func TestRLSThroughRepositories(t *testing.T) {
 
 	get := func(id uuid.UUID) node.Node { // as the root owner, who sees everything
 		var n node.Node
-		require.NoError(t, s.in(ctx, w.ownerRoot, func(ctx context.Context, tx port.Tx) error {
+		require.NoError(t, s.in(ctx, w.OwnerRoot, func(ctx context.Context, tx port.Tx) error {
 			var err error
 			n, err = s.repo.Get(ctx, tx, nid(id))
 			return err
@@ -102,8 +102,8 @@ func TestRLSThroughRepositories(t *testing.T) {
 		actor        uuid.UUID
 		own, foreign []uuid.UUID
 	}{
-		{"admin of A", w.adminA, w.nodesA, w.nodesB},
-		{"admin of B", w.adminB, w.nodesB, w.nodesA},
+		{"admin of A", w.AdminA, w.NodesA, w.NodesB},
+		{"admin of B", w.AdminB, w.NodesB, w.NodesA},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -111,10 +111,10 @@ func TestRLSThroughRepositories(t *testing.T) {
 			before := snapshot(ctx, t, db)
 			foreignCompany, foreignUnit := get(c.foreign[1]), get(c.foreign[2])
 			ownUnit := get(c.own[2])
-			assert.ElementsMatch(t, c.own, s.visibleTo(ctx, t, c.actor, append(append([]uuid.UUID{}, c.own...), append(c.foreign, w.root)...)))
+			assert.ElementsMatch(t, c.own, s.visibleTo(ctx, t, c.actor, append(append([]uuid.UUID{}, c.own...), append(c.foreign, w.Root)...)))
 
 			err := s.in(ctx, c.actor, func(ctx context.Context, tx port.Tx) error {
-				for _, f := range append(append([]uuid.UUID{}, c.foreign...), w.root) {
+				for _, f := range append(append([]uuid.UUID{}, c.foreign...), w.Root) {
 					id := nid(f)
 					_, err := s.repo.Get(ctx, tx, id)
 					assert.Equal(t, notFound, err)
@@ -125,7 +125,7 @@ func TestRLSThroughRepositories(t *testing.T) {
 					kids, err := s.repo.ListChildren(ctx, tx, id, nil, 10)
 					assert.NoError(t, err)
 					assert.Empty(t, kids)
-					if f != w.root { // the root has a child the actor does see (its own branch)
+					if f != w.Root { // the root has a child the actor does see (its own branch)
 						cnt, err := s.repo.CountChildren(ctx, tx, id)
 						assert.NoError(t, err)
 						assert.Zero(t, cnt)
@@ -167,8 +167,10 @@ func TestRLSThroughRepositories(t *testing.T) {
 			// has nothing to check, and the policy itself answers with 42501.
 			rootID := nid(uuid.Must(uuid.NewV7()))
 			now := time.Now().UTC()
-			stray := node.Node{ID: rootID, Type: node.TypePlatform, Path: node.Path{rootID}, Name: mustName(t, "stray root"),
-				Status: node.StatusActive, CreatedAt: now, UpdatedAt: now}
+			stray := node.Node{
+				ID: rootID, Type: node.TypePlatform, Path: node.Path{rootID}, Name: mustName(t, "stray root"),
+				Status: node.StatusActive, CreatedAt: now, UpdatedAt: now,
+			}
 			err = s.in(ctx, c.actor, func(ctx context.Context, tx port.Tx) error { return s.repo.Insert(ctx, tx, stray) })
 			assert.Equal(t, notFound, err)
 			assert.Contains(t, s.logs.String(), `"sqlstate":"42501"`)
@@ -206,13 +208,13 @@ func TestPoolDoesNotLeakActor(t *testing.T) {
 		require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM nodes`).Scan(&n))
 		return n
 	}
-	all := append(append([]uuid.UUID{w.root}, w.nodesA...), w.nodesB...)
+	all := append(append([]uuid.UUID{w.Root}, w.NodesA...), w.NodesB...)
 	only := func(actor uuid.UUID, own []uuid.UUID) {
 		t.Helper()
 		assert.ElementsMatch(t, own, s.visibleTo(ctx, t, actor, all))
 	}
 
-	only(w.adminA, w.nodesA)
+	only(w.AdminA, w.NodesA)
 	connection := pid()
 
 	// Between transactions, on the same single connection: no actor, no rows.
@@ -220,14 +222,14 @@ func TestPoolDoesNotLeakActor(t *testing.T) {
 	assert.Empty(t, actorSetting())
 	assert.Zero(t, rowsWithoutActor())
 
-	only(w.adminB, w.nodesB)
+	only(w.AdminB, w.NodesB)
 	assert.Equal(t, connection, pid(), "the single connection must be reused")
 	assert.Empty(t, actorSetting())
 
 	// A transaction that fails after the actor was set leaks nothing either.
 	boom := errors.New("boom")
-	require.ErrorIs(t, s.in(ctx, w.adminA, func(ctx context.Context, tx port.Tx) error {
-		if _, err := s.repo.Get(ctx, tx, nid(w.a)); err != nil {
+	require.ErrorIs(t, s.in(ctx, w.AdminA, func(ctx context.Context, tx port.Tx) error {
+		if _, err := s.repo.Get(ctx, tx, nid(w.A)); err != nil {
 			return err
 		}
 		return boom
@@ -241,7 +243,7 @@ func TestPoolDoesNotLeakActor(t *testing.T) {
 	for _, c := range []struct {
 		actor uuid.UUID
 		own   []uuid.UUID
-	}{{w.adminA, w.nodesA}, {w.adminB, w.nodesB}} {
+	}{{w.AdminA, w.NodesA}, {w.AdminB, w.NodesB}} {
 		wg.Go(func() {
 			for range 25 {
 				got := s.visibleTo(ctx, t, c.actor, all)
@@ -263,10 +265,10 @@ func TestErrorAndPanicResetActor(t *testing.T) {
 	w := newWorld(ctx, t, db)
 	pool := db.NewAppPool(t, 1)
 	s := newStack(pool)
-	all := append(append([]uuid.UUID{w.root}, w.nodesA...), w.nodesB...)
+	all := append(append([]uuid.UUID{w.Root}, w.NodesA...), w.NodesB...)
 
 	rename := func(ctx context.Context, tx port.Tx) error {
-		n, err := s.repo.Get(ctx, tx, nid(w.a1u1))
+		n, err := s.repo.Get(ctx, tx, nid(w.A1u1))
 		if err != nil {
 			return err
 		}
@@ -284,14 +286,14 @@ func TestErrorAndPanicResetActor(t *testing.T) {
 		var n int
 		require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM nodes`).Scan(&n))
 		assert.Zero(t, n)
-		assert.ElementsMatch(t, w.nodesB, s.visibleTo(ctx, t, w.adminB, all))
+		assert.ElementsMatch(t, w.NodesB, s.visibleTo(ctx, t, w.AdminB, all))
 		assert.EqualValues(t, 1, pool.Stat().TotalConns())
 	}
 
 	t.Run("error after a write", func(t *testing.T) {
 		before := snapshot(ctx, t, db)
 		boom := errors.New("boom")
-		err := s.in(ctx, w.adminA, func(ctx context.Context, tx port.Tx) error {
+		err := s.in(ctx, w.AdminA, func(ctx context.Context, tx port.Tx) error {
 			if err := rename(ctx, tx); err != nil {
 				return err
 			}
@@ -304,7 +306,7 @@ func TestErrorAndPanicResetActor(t *testing.T) {
 	t.Run("panic after a write", func(t *testing.T) {
 		before := snapshot(ctx, t, db)
 		assert.PanicsWithValue(t, "kaboom", func() {
-			_ = s.in(ctx, w.adminA, func(ctx context.Context, tx port.Tx) error {
+			_ = s.in(ctx, w.AdminA, func(ctx context.Context, tx port.Tx) error {
 				require.NoError(t, rename(ctx, tx))
 				panic("kaboom")
 			})
@@ -315,7 +317,7 @@ func TestErrorAndPanicResetActor(t *testing.T) {
 	t.Run("cancelled request after a write", func(t *testing.T) {
 		before := snapshot(ctx, t, db)
 		cctx, cancel := context.WithCancel(ctx)
-		err := s.in(cctx, w.adminA, func(ctx context.Context, tx port.Tx) error {
+		err := s.in(cctx, w.AdminA, func(ctx context.Context, tx port.Tx) error {
 			if err := rename(ctx, tx); err != nil {
 				return err
 			}
@@ -327,16 +329,16 @@ func TestErrorAndPanicResetActor(t *testing.T) {
 		// transaction on the single connection must not hang.
 		tctx, stop := context.WithTimeout(ctx, 10*time.Second)
 		defer stop()
-		assert.ElementsMatch(t, w.nodesB, s.visibleTo(tctx, t, w.adminB, all))
+		assert.ElementsMatch(t, w.NodesB, s.visibleTo(tctx, t, w.AdminB, all))
 		afterwards(before)
 	})
 
 	t.Run("a statement error inside the transaction", func(t *testing.T) {
 		before := snapshot(ctx, t, db)
-		err := s.in(ctx, w.adminA, func(ctx context.Context, tx port.Tx) error {
+		err := s.in(ctx, w.AdminA, func(ctx context.Context, tx port.Tx) error {
 			require.NoError(t, rename(ctx, tx))
 			// Deleting a node that has children violates a foreign key.
-			return s.repo.Delete(ctx, tx, nid(w.a1))
+			return s.repo.Delete(ctx, tx, nid(w.A1))
 		})
 		require.ErrorIs(t, err, apperr.New(apperr.NodeHasChildren, ""))
 		afterwards(before)

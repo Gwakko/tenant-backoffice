@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Gwakko/tenant-backoffice/backend/internal/isolation"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/testkit"
 )
 
@@ -23,30 +24,30 @@ func TestNodeWritesCannotEscapeBranch(t *testing.T) {
 	ctx := context.Background()
 	db := testkit.NewDB(t)
 	w := newWorld(ctx, t, db)
-	actor := w.adminA.String()
-	fresh := func(parent uuid.UUID) string { return w.pathOf[parent] + "." + label(uuid.New()) }
+	actor := w.AdminA.String()
+	fresh := func(parent uuid.UUID) string { return w.PathOf[parent] + "." + isolation.Label(uuid.New()) }
 
 	t.Run("control: a move inside the own branch works", func(t *testing.T) {
 		inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
-			tag, err := tx.Exec(ctx, `UPDATE nodes SET name = 'renamed' WHERE id = $1`, w.a1u1)
+			tag, err := tx.Exec(ctx, `UPDATE nodes SET name = 'renamed' WHERE id = $1`, w.A1u1)
 			require.NoError(t, err)
 			assert.EqualValues(t, 1, tag.RowsAffected())
 		})
 	})
 
 	pathCases := map[string]string{
-		"path inside branch B (fresh child of B1)":        fresh(w.b1),
-		"path equal to an existing node of branch B":      w.pathOf[w.b1u1],
-		"path of branch B itself":                         w.pathOf[w.b],
-		"path of an ancestor above the access root":       w.pathOf[w.root],
-		"fresh child of the ancestor above access root":   fresh(w.root),
-		"unrelated fresh root path (outside every scope)": label(uuid.New()),
+		"path inside branch B (fresh child of B1)":        fresh(w.B1),
+		"path equal to an existing node of branch B":      w.PathOf[w.B1u1],
+		"path of branch B itself":                         w.PathOf[w.B],
+		"path of an ancestor above the access root":       w.PathOf[w.Root],
+		"fresh child of the ancestor above access root":   fresh(w.Root),
+		"unrelated fresh root path (outside every scope)": isolation.Label(uuid.New()),
 	}
 	for name, newPath := range pathCases {
 		t.Run("direct path update: "+name, func(t *testing.T) {
 			before := snapshot(ctx, t, db)
 			inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
-				_, err := tx.Exec(ctx, `UPDATE nodes SET path = $1::ltree WHERE id = $2`, newPath, w.a1u1)
+				_, err := tx.Exec(ctx, `UPDATE nodes SET path = $1::ltree WHERE id = $2`, newPath, w.A1u1)
 				require.Error(t, err)
 				assert.Equal(t, rlsDenied, sqlState(err), "got: %v", err)
 			})
@@ -57,7 +58,7 @@ func TestNodeWritesCannotEscapeBranch(t *testing.T) {
 	t.Run("re-parent into branch B", func(t *testing.T) {
 		before := snapshot(ctx, t, db)
 		inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
-			_, err := tx.Exec(ctx, `UPDATE nodes SET parent_id = $1 WHERE id = $2`, w.b1, w.a1u1)
+			_, err := tx.Exec(ctx, `UPDATE nodes SET parent_id = $1 WHERE id = $2`, w.B1, w.A1u1)
 			require.Error(t, err)
 			assert.Contains(t, []string{"23514", rlsDenied}, sqlState(err), "got: %v", err)
 		})
@@ -67,7 +68,7 @@ func TestNodeWritesCannotEscapeBranch(t *testing.T) {
 	t.Run("re-parent and path together into branch B", func(t *testing.T) {
 		before := snapshot(ctx, t, db)
 		inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
-			_, err := tx.Exec(ctx, `UPDATE nodes SET parent_id = $1, path = $2::ltree WHERE id = $3`, w.b1, fresh(w.b1), w.a1u1)
+			_, err := tx.Exec(ctx, `UPDATE nodes SET parent_id = $1, path = $2::ltree WHERE id = $3`, w.B1, fresh(w.B1), w.A1u1)
 			require.Error(t, err)
 			assert.Contains(t, []string{"23514", rlsDenied}, sqlState(err), "got: %v", err)
 		})
@@ -76,11 +77,11 @@ func TestNodeWritesCannotEscapeBranch(t *testing.T) {
 
 	t.Run("delete nodes of branch B and above the access root", func(t *testing.T) {
 		before := snapshot(ctx, t, db)
-		for _, id := range append(append([]uuid.UUID{}, w.nodesB...), w.root) {
+		for _, id := range append(append([]uuid.UUID{}, w.NodesB...), w.Root) {
 			inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
 				tag, err := tx.Exec(ctx, `DELETE FROM nodes WHERE id = $1`, id)
 				require.NoError(t, err)
-				assert.Zero(t, tag.RowsAffected(), w.nameOf[id])
+				assert.Zero(t, tag.RowsAffected(), w.NameOf[id])
 			})
 		}
 		assert.Equal(t, before, snapshot(ctx, t, db), "data changed")
@@ -95,11 +96,11 @@ func TestUserPasswordWritePath(t *testing.T) {
 	ctx := context.Background()
 	db := testkit.NewDB(t)
 	w := newWorld(ctx, t, db)
-	actor := w.adminA.String()
+	actor := w.AdminA.String()
 
 	hashes := func() map[uuid.UUID]string {
 		out := map[uuid.UUID]string{}
-		for _, id := range w.allUsers {
+		for _, id := range w.AllUsers {
 			var h string
 			require.NoError(t, db.Owner.QueryRow(ctx, `SELECT password_hash FROM users WHERE id = $1`, id).Scan(&h))
 			out[id] = h
@@ -110,7 +111,7 @@ func TestUserPasswordWritePath(t *testing.T) {
 	t.Run("direct UPDATE of password_hash is denied", func(t *testing.T) {
 		before := snapshot(ctx, t, db)
 		// Own row, a visible user of the actor's branch, an invisible user of another branch.
-		for _, id := range []uuid.UUID{w.adminA, w.viewerA1u1, w.multi, w.adminB} {
+		for _, id := range []uuid.UUID{w.AdminA, w.ViewerA1u1, w.Multi, w.AdminB} {
 			inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
 				_, err := tx.Exec(ctx, `UPDATE users SET password_hash = 'pwned' WHERE id = $1`, id)
 				require.Error(t, err)
@@ -127,10 +128,10 @@ func TestUserPasswordWritePath(t *testing.T) {
 
 	t.Run("status and token_version stay updatable on visible users", func(t *testing.T) {
 		inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
-			tag, err := tx.Exec(ctx, `UPDATE users SET status = 'inactive', token_version = token_version + 1 WHERE id = $1`, w.viewerA1u1)
+			tag, err := tx.Exec(ctx, `UPDATE users SET status = 'inactive', token_version = token_version + 1 WHERE id = $1`, w.ViewerA1u1)
 			require.NoError(t, err)
 			assert.EqualValues(t, 1, tag.RowsAffected())
-			tag, err = tx.Exec(ctx, `UPDATE users SET status = 'inactive' WHERE id = $1`, w.adminB)
+			tag, err = tx.Exec(ctx, `UPDATE users SET status = 'inactive' WHERE id = $1`, w.AdminB)
 			require.NoError(t, err)
 			assert.Zero(t, tag.RowsAffected(), "foreign user is invisible")
 		})
@@ -160,11 +161,11 @@ func TestUserPasswordWritePath(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, tx.Commit(ctx))
 		after := hashes()
-		for _, id := range w.allUsers {
-			if id == w.adminA {
+		for _, id := range w.AllUsers {
+			if id == w.AdminA {
 				assert.Equal(t, "new-hash", after[id])
 			} else {
-				assert.Equal(t, before[id], after[id], "other user %s must keep the hash", w.emails[id])
+				assert.Equal(t, before[id], after[id], "other user %s must keep the hash", w.Emails[id])
 			}
 		}
 	})
@@ -228,13 +229,13 @@ func TestAuthByIDHasNoPasswordHash(t *testing.T) {
 	}
 	inTx(ctx, t, db.App, "", func(tx pgx.Tx) {
 		assert.Equal(t, []string{"id", "status", "token_version"},
-			columns(tx, `SELECT * FROM tb_auth_user_by_id($1)`, w.adminA))
+			columns(tx, `SELECT * FROM tb_auth_user_by_id($1)`, w.AdminA))
 	})
 	inTx(ctx, t, db.App, "", func(tx pgx.Tx) {
-		assert.Contains(t, columns(tx, `SELECT * FROM tb_auth_user_by_email($1)`, w.emails[w.adminA]), "password_hash")
+		assert.Contains(t, columns(tx, `SELECT * FROM tb_auth_user_by_email($1)`, w.Emails[w.AdminA]), "password_hash")
 	})
 	inTx(ctx, t, db.App, "", func(tx pgx.Tx) {
-		_, err := tx.Exec(ctx, `SELECT password_hash FROM tb_auth_user_by_id($1)`, w.adminA)
+		_, err := tx.Exec(ctx, `SELECT password_hash FROM tb_auth_user_by_id($1)`, w.AdminA)
 		require.Error(t, err)
 		assert.Equal(t, "42703", sqlState(err))
 	})

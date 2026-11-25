@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Gwakko/tenant-backoffice/backend/internal/isolation"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/testkit"
 )
 
@@ -26,7 +27,7 @@ func TestNoActorSeesNothing(t *testing.T) {
 	// Control: the owner sees everything, so "0 rows" below is RLS and not an empty database.
 	var total int
 	require.NoError(t, db.Owner.QueryRow(ctx, `SELECT (SELECT count(*) FROM nodes) + (SELECT count(*) FROM users) + (SELECT count(*) FROM role_assignments)`).Scan(&total))
-	require.Equal(t, len(w.allNodes)+len(w.allUsers)+w.roleRows, total)
+	require.Equal(t, len(w.AllNodes)+len(w.AllUsers)+w.RoleRows, total)
 
 	// Sessions that carry no usable actor.
 	sessions := map[string]string{
@@ -59,7 +60,7 @@ func TestNoActorSeesNothing(t *testing.T) {
 			inserts := map[string][]any{
 				`INSERT INTO nodes (id, type, parent_id, path, name, name_key, created_at, updated_at)
 				 VALUES ($1::uuid, 'platform', NULL, replace($1::uuid::text, '-', '')::ltree, 'p', 'p', now(), now())`: {uuid.New()},
-				`INSERT INTO role_assignments (user_id, node_id, role, granted_at) VALUES ($1, $2, 'viewer', now())`:   {w.orphan, w.a},
+				`INSERT INTO role_assignments (user_id, node_id, role, granted_at) VALUES ($1, $2, 'viewer', now())`:   {w.Orphan, w.A},
 				`INSERT INTO users (id, email, password_hash, created_at) VALUES ($1, 'new@example.test', 'h', now())`: {uuid.New()},
 			}
 			for stmt, args := range inserts {
@@ -108,19 +109,19 @@ func TestNoActorSeesNothing(t *testing.T) {
 			require.NoError(t, tx.QueryRow(ctx, `SELECT tb_actor_id()`).Scan(&id))
 			assert.Nil(t, id)
 			var active *bool
-			require.NoError(t, tx.QueryRow(ctx, `SELECT tb_node_effective_active($1)`, w.a1).Scan(&active))
+			require.NoError(t, tx.QueryRow(ctx, `SELECT tb_node_effective_active($1)`, w.A1).Scan(&active))
 			assert.Nil(t, active)
 			var found *uuid.UUID
-			require.NoError(t, tx.QueryRow(ctx, `SELECT tb_user_id_by_email($1)`, w.emails[w.adminB]).Scan(&found))
+			require.NoError(t, tx.QueryRow(ctx, `SELECT tb_user_id_by_email($1)`, w.Emails[w.AdminB]).Scan(&found))
 			assert.Nil(t, found, "tb_user_id_by_email must answer only for an actor")
 		})
 	})
 
 	t.Run("inactive actor", func(t *testing.T) {
-		inTx(ctx, t, db.App, w.inactive.String(), func(tx pgx.Tx) {
+		inTx(ctx, t, db.App, w.Inactive.String(), func(tx pgx.Tx) {
 			assert.Zero(t, count(ctx, t, tx, `SELECT * FROM nodes`))
 			assert.Zero(t, count(ctx, t, tx, `SELECT * FROM role_assignments`))
-			assert.Equal(t, []uuid.UUID{w.inactive}, ids(ctx, t, tx, `SELECT id FROM users`), "only the own row")
+			assert.Equal(t, []uuid.UUID{w.Inactive}, ids(ctx, t, tx, `SELECT id FROM users`), "only the own row")
 		})
 	})
 }
@@ -136,8 +137,8 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 		actor        uuid.UUID
 		own, foreign []uuid.UUID
 	}{
-		{"admin of A", w.adminA, w.nodesA, w.nodesB},
-		{"admin of B", w.adminB, w.nodesB, w.nodesA},
+		{"admin of A", w.AdminA, w.NodesA, w.NodesB},
+		{"admin of B", w.AdminB, w.NodesB, w.NodesA},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -147,7 +148,7 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 			inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
 				// The actor sees exactly its own branch, never the root above it.
 				assert.ElementsMatch(t, c.own, ids(ctx, t, tx, `SELECT id FROM nodes`))
-				for _, f := range append(append([]uuid.UUID{}, c.foreign...), w.root) {
+				for _, f := range append(append([]uuid.UUID{}, c.foreign...), w.Root) {
 					assert.Zero(t, count(ctx, t, tx, `SELECT id FROM nodes WHERE id = $1`, f))
 					assert.Zero(t, count(ctx, t, tx, `SELECT id FROM nodes WHERE id IN (SELECT $1::uuid)`, f))
 					assert.Zero(t, count(ctx, t, tx, `SELECT ra.user_id FROM role_assignments ra WHERE ra.node_id = $1`, f))
@@ -157,18 +158,18 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 					assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE path <@ (SELECT path FROM nodes WHERE id = $1)`, f))
 				}
 				// Subtree and name probes across the branch boundary.
-				assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE name = $1`, w.nameOf[c.foreign[0]]))
-				assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE path <@ $1::ltree`, w.pathOf[c.foreign[0]]))
+				assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE name = $1`, w.NameOf[c.foreign[0]]))
+				assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE path <@ $1::ltree`, w.PathOf[c.foreign[0]]))
 				// Users: only people with an assignment in the own branch, plus the actor.
-				for _, u := range []uuid.UUID{w.onlyB, w.ownerRoot, w.orphan} {
-					if u == w.onlyB && c.actor == w.adminB {
+				for _, u := range []uuid.UUID{w.OnlyB, w.OwnerRoot, w.Orphan} {
+					if u == w.OnlyB && c.actor == w.AdminB {
 						continue
 					}
-					assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM users WHERE id = $1`, u), w.emails[u])
+					assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM users WHERE id = $1`, u), w.Emails[u])
 				}
 				// A multi-branch user is visible, but only the own-branch assignment is.
-				assert.Equal(t, 1, count(ctx, t, tx, `SELECT 1 FROM users WHERE id = $1`, w.multi))
-				assert.Equal(t, 1, count(ctx, t, tx, `SELECT 1 FROM role_assignments WHERE user_id = $1`, w.multi))
+				assert.Equal(t, 1, count(ctx, t, tx, `SELECT 1 FROM users WHERE id = $1`, w.Multi))
+				assert.Equal(t, 1, count(ctx, t, tx, `SELECT 1 FROM role_assignments WHERE user_id = $1`, w.Multi))
 				// The password hash is not readable through SQL at all.
 				_, err := tx.Exec(ctx, `SELECT password_hash FROM users`)
 				assert.Equal(t, rlsDenied, sqlState(err))
@@ -211,7 +212,7 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 			inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
 				_, err := tx.Exec(ctx,
 					`INSERT INTO role_assignments (user_id, node_id, role, granted_at) VALUES ($1, $2, 'viewer', now())`,
-					w.orphan, c.foreign[1])
+					w.Orphan, c.foreign[1])
 				require.Error(t, err)
 				assert.Equal(t, rlsDenied, sqlState(err))
 			})
@@ -220,7 +221,7 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 				_, err := tx.Exec(ctx,
 					`INSERT INTO nodes (id, type, parent_id, path, name, name_key, created_at, updated_at)
 					 VALUES ($1, 'unit', $2, $3::ltree, 'x', 'x', now(), now())`,
-					id, c.foreign[1], w.pathOf[c.foreign[1]]+"."+label(id))
+					id, c.foreign[1], w.PathOf[c.foreign[1]]+"."+isolation.Label(id))
 				require.Error(t, err, "a node under a foreign parent must not be created")
 				// The parent trigger reads the parent under RLS, so it fires first (check_violation).
 				assert.Contains(t, []string{rlsDenied, "23514"}, sqlState(err))
@@ -228,7 +229,7 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 			// Moving an own node into the foreign branch fails the WITH CHECK.
 			inTx(ctx, t, db.App, actor, func(tx pgx.Tx) {
 				_, err := tx.Exec(ctx, `UPDATE nodes SET path = $2::ltree || subpath(path, -1) WHERE id = $1`,
-					c.own[2], w.pathOf[c.foreign[1]])
+					c.own[2], w.PathOf[c.foreign[1]])
 				require.Error(t, err)
 			})
 			assert.Equal(t, before, snapshot(ctx, t, db), "foreign data changed")
@@ -236,16 +237,16 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 	}
 
 	t.Run("role on a unit does not reveal ancestors", func(t *testing.T) {
-		inTx(ctx, t, db.App, w.viewerA1u1.String(), func(tx pgx.Tx) {
-			assert.Equal(t, []uuid.UUID{w.a1u1}, ids(ctx, t, tx, `SELECT id FROM nodes`))
-			assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE id = ANY($1)`, []uuid.UUID{w.a1, w.a, w.root, w.a1u2}))
+		inTx(ctx, t, db.App, w.ViewerA1u1.String(), func(tx pgx.Tx) {
+			assert.Equal(t, []uuid.UUID{w.A1u1}, ids(ctx, t, tx, `SELECT id FROM nodes`))
+			assert.Zero(t, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE id = ANY($1)`, []uuid.UUID{w.A1, w.A, w.Root, w.A1u2}))
 		})
 	})
 
 	t.Run("multi-branch user sees both of its subtrees and nothing else", func(t *testing.T) {
-		inTx(ctx, t, db.App, w.multi.String(), func(tx pgx.Tx) {
+		inTx(ctx, t, db.App, w.Multi.String(), func(tx pgx.Tx) {
 			got := ids(ctx, t, tx, `SELECT id FROM nodes`)
-			want := []uuid.UUID{w.a1, w.a1u1, w.a1u2, w.b1, w.b1u1, w.b1u2}
+			want := []uuid.UUID{w.A1, w.A1u1, w.A1u2, w.B1, w.B1u1, w.B1u2}
 			sortIDs(got)
 			sortIDs(want)
 			assert.Equal(t, want, got)
@@ -253,22 +254,22 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 	})
 
 	t.Run("effective activity sees inactive ancestors above the access root", func(t *testing.T) {
-		_, err := db.Owner.Exec(ctx, `UPDATE nodes SET status = 'inactive' WHERE id = $1`, w.root)
+		_, err := db.Owner.Exec(ctx, `UPDATE nodes SET status = 'inactive' WHERE id = $1`, w.Root)
 		require.NoError(t, err)
-		inTx(ctx, t, db.App, w.adminA.String(), func(tx pgx.Tx) {
+		inTx(ctx, t, db.App, w.AdminA.String(), func(tx pgx.Tx) {
 			var active *bool
-			require.NoError(t, tx.QueryRow(ctx, `SELECT tb_node_effective_active($1)`, w.a1).Scan(&active))
+			require.NoError(t, tx.QueryRow(ctx, `SELECT tb_node_effective_active($1)`, w.A1).Scan(&active))
 			require.NotNil(t, active)
 			assert.False(t, *active)
-			assert.Equal(t, 1, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE id = $1 AND status = 'active'`, w.a1))
+			assert.Equal(t, 1, count(ctx, t, tx, `SELECT 1 FROM nodes WHERE id = $1 AND status = 'active'`, w.A1))
 		})
-		_, err = db.Owner.Exec(ctx, `UPDATE nodes SET status = 'active' WHERE id = $1`, w.root)
+		_, err = db.Owner.Exec(ctx, `UPDATE nodes SET status = 'active' WHERE id = $1`, w.Root)
 		require.NoError(t, err)
 	})
 
 	t.Run("insert user without RETURNING works, with RETURNING is rejected", func(t *testing.T) {
 		id := uuid.Must(uuid.NewV7())
-		inTx(ctx, t, db.App, w.adminA.String(), func(tx pgx.Tx) {
+		inTx(ctx, t, db.App, w.AdminA.String(), func(tx pgx.Tx) {
 			tag, err := tx.Exec(ctx, `INSERT INTO users (id, email, password_hash, created_at) VALUES ($1, 'fresh@example.test', 'h', now())`, id)
 			require.NoError(t, err)
 			assert.EqualValues(t, 1, tag.RowsAffected())
@@ -277,7 +278,7 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 			require.NotNil(t, found)
 			assert.Equal(t, id, *found)
 		})
-		inTx(ctx, t, db.App, w.adminA.String(), func(tx pgx.Tx) {
+		inTx(ctx, t, db.App, w.AdminA.String(), func(tx pgx.Tx) {
 			_, err := tx.Exec(ctx, `INSERT INTO users (id, email, password_hash, created_at) VALUES ($1, 'fresh2@example.test', 'h', now()) RETURNING id`, uuid.New())
 			require.Error(t, err)
 			assert.Equal(t, rlsDenied, sqlState(err))
@@ -289,10 +290,10 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 			var id uuid.UUID
 			var hash, status string
 			var tv int64
-			require.NoError(t, tx.QueryRow(ctx, `SELECT id, password_hash, status, token_version FROM tb_auth_user_by_email($1)`, w.emails[w.adminB]).Scan(&id, &hash, &status, &tv))
-			assert.Equal(t, w.adminB, id)
+			require.NoError(t, tx.QueryRow(ctx, `SELECT id, password_hash, status, token_version FROM tb_auth_user_by_email($1)`, w.Emails[w.AdminB]).Scan(&id, &hash, &status, &tv))
+			assert.Equal(t, w.AdminB, id)
 			assert.Equal(t, "active", status)
-			require.NoError(t, tx.QueryRow(ctx, `SELECT id, status, token_version FROM tb_auth_user_by_id($1)`, w.inactive).Scan(&id, &status, &tv))
+			require.NoError(t, tx.QueryRow(ctx, `SELECT id, status, token_version FROM tb_auth_user_by_id($1)`, w.Inactive).Scan(&id, &status, &tv))
 			assert.Equal(t, "inactive", status)
 			// One user per call, never a list; unknown input gives no row.
 			assert.Zero(t, count(ctx, t, tx, `SELECT * FROM tb_auth_user_by_email('nobody@example.test')`))
