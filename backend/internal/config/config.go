@@ -18,6 +18,25 @@ type Config struct {
 	LogLevel  string `env:"TB_LOG_LEVEL" envDefault:"info"`
 	LogFormat string `env:"TB_LOG_FORMAT" envDefault:"json"`
 	DB        Database
+	Auth      Auth
+}
+
+// Auth holds the authentication settings. The key directory is optional here
+// (like the database URL); the authn adapter validates it when it is built.
+type Auth struct {
+	// JWTKeysDir holds <kid>.pem Ed25519 keys; keys are never read from the repository.
+	JWTKeysDir      string        `env:"TB_JWT_KEYS_DIR"`
+	JWTActiveKID    string        `env:"TB_JWT_ACTIVE_KID" envDefault:"k2026a"`
+	JWTIssuer       string        `env:"TB_JWT_ISSUER" envDefault:"tenant-backoffice"`
+	JWTAudience     string        `env:"TB_JWT_AUDIENCE" envDefault:"tenant-backoffice-api"`
+	JWTLeeway       time.Duration `env:"TB_JWT_LEEWAY" envDefault:"30s"`
+	AccessTTL       time.Duration `env:"TB_ACCESS_TTL" envDefault:"10m"`
+	RefreshTTL      time.Duration `env:"TB_REFRESH_TTL" envDefault:"168h"`
+	Argon2MemoryKiB uint32        `env:"TB_ARGON2_MEMORY_KIB" envDefault:"19456"`
+	Argon2Time      uint32        `env:"TB_ARGON2_TIME" envDefault:"2"`
+	Argon2Threads   uint8         `env:"TB_ARGON2_THREADS" envDefault:"1"`
+	Argon2KeyLen    uint32        `env:"TB_ARGON2_KEY_LEN" envDefault:"32"`
+	Argon2SaltLen   uint32        `env:"TB_ARGON2_SALT_LEN" envDefault:"16"`
 }
 
 // Database holds the runtime connection settings of the application database.
