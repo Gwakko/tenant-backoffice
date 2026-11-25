@@ -17,7 +17,7 @@ func get(t *testing.T, h *httpapi.HealthHandler, path string) int {
 	mux := http.NewServeMux()
 	h.Register(mux)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil))
 	return rec.Code
 }
 

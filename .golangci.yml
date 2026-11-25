@@ -1,0 +1,122 @@
+# golangci-lint v2 configuration. Rules follow docs/spec/08_testing.md section 3.7
+# (T-ARCH-02) and docs/spec/00_overview.md section 5.
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Gwakko/tenant-backoffice/backend
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - revive
+    - gosec
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+    - errorlint
+    - noctx
+    - contextcheck
+    - exhaustive
+    - forbidigo
+    - depguard
+    - gocritic
+    - misspell
+    - nolintlint
+    - usestdlibvars
+  settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^os\.(Getenv|LookupEnv)$
+          msg: environment is read only in internal/config (config.Load)
+        - pattern: ^fmt\.(Print|Printf|Println)$
+          msg: use log/slog with an injected logger
+        - pattern: ^log\.(Print|Printf|Println|Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$
+          msg: use log/slog with an injected logger
+        - pattern: ^os\.Exit$
+          msg: os.Exit is allowed only in cmd/*/main.go
+    depguard:
+      rules:
+        # T-ARCH-01 duplicate: domain imports only the standard library
+        # plus the allowed packages, and never context.
+        domain:
+          list-mode: strict
+          files:
+            - '**/internal/domain/**'
+            - '!$test'
+          allow:
+            - $gostd
+            - golang.org/x/text
+            - github.com/google/uuid
+            - github.com/Gwakko/tenant-backoffice/backend/internal/domain
+          deny:
+            - pkg: context
+              desc: domain has no context (spec 00 section 5)
+        usecase:
+          files:
+            - '**/internal/usecase/**'
+            - '!$test'
+          deny:
+            - pkg: github.com/Gwakko/tenant-backoffice/backend/internal/adapter
+              desc: usecase must not import adapters
+            - pkg: github.com/Gwakko/tenant-backoffice/backend/internal/app
+              desc: usecase must not import the composition root
+            - pkg: github.com/jackc/pgx
+              desc: usecase must not import pgx
+            - pkg: net/http
+              desc: usecase must not import net/http
+        # Only app and cmd may import adapters.
+        adapters-only-in-app:
+          files:
+            - '**/internal/domain/**'
+            - '**/internal/usecase/**'
+            - '**/internal/config/**'
+            - '!$test'
+          deny:
+            - pkg: github.com/Gwakko/tenant-backoffice/backend/internal/adapter
+              desc: only app and cmd import adapters
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      # Environment access: config package, test helpers and tests.
+      - path: internal/config/
+        linters: [forbidigo]
+        text: 'os\.(Getenv|LookupEnv)'
+      - path: internal/testkit/
+        linters: [forbidigo]
+        text: 'os\.(Getenv|LookupEnv)'
+      - path: _test\.go
+        linters: [forbidigo]
+        text: 'os\.(Getenv|LookupEnv)'
+      # cmd may call os.Exit.
+      - path: (^|/)cmd/
+        linters: [forbidigo]
+        text: 'os\.Exit'
+      - path: _test\.go
+        linters: [gosec]
+      # math/rand is used only for unique throwaway database names, not for secrets.
+      - path: (internal/testkit/|internal/app/migrate\.go)
+        linters: [gosec]
+        text: G404
