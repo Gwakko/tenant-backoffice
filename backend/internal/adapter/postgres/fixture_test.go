@@ -108,8 +108,10 @@ func (w *world) addNode(ctx context.Context, key string, typ node.Type, parent s
 	name, err := node.ParseName(key)
 	require.NoError(w.t, err)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	n := node.Node{ID: id, Type: typ, ParentID: pid, Path: path, Name: name, Status: node.StatusActive,
-		AncestorsActive: true, CreatedAt: now, UpdatedAt: now}
+	n := node.Node{
+		ID: id, Type: typ, ParentID: pid, Path: path, Name: name, Status: node.StatusActive,
+		AncestorsActive: true, CreatedAt: now, UpdatedAt: now,
+	}
 	var parentArg any
 	if pid != nil {
 		parentArg = uuid.UUID(*pid)

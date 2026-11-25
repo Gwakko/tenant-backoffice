@@ -38,7 +38,7 @@ Unit-тесты use cases используют in-memory фейки портов
 - Validate: email и пароль непустые, длина пароля ≤ 128 байт (иначе сразу `invalid_credentials`, не `validation_failed`, чтобы не давать оракул).
 - Шаги (вне `InTx` с актором, через SECURITY DEFINER-функции): rate limit (адаптер в handler, не в use case); `AuthUserRepo.ByEmail`; нет пользователя -> сравнить с фиктивным хэшем; неверный пароль или `inactive` -> `invalid_credentials`; создать refresh (новая `family_id`); выпустить access.
 - Output: `AccessToken string, ExpiresIn time.Duration, RefreshToken string, RefreshExpiresAt time.Time, UserID, Email`.
-- Транзакция: одна, без актора (только `refresh_tokens`). Аудит: нет (вход не изменяет данные тенанта; лог `slog` info без пароля).
+- Транзакций до проверки пароля нет: поиск пользователя идёт функциями `SECURITY DEFINER` без актора; после успешной проверки пароля транзакция открывается уже от имени найденного пользователя (только `refresh_tokens`). Аудит: нет (вход не изменяет данные тенанта; лог `slog` info без пароля).
 
 ### UC-A2 `Refresh`
 - Input: `RefreshToken string`. Validate: непустой, base64url 43 символа.
