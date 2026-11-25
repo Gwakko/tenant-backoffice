@@ -1,20 +1,2 @@
-# Go
-*.test
-*.out
-/backend/bin/
-/backend/coverage.*
-
-# Node
-node_modules/
-/web/dist/
-
-# Secrets and local state
+/.env
 /keys/
-.env
-.env.*
-!.env.example
-
-# Editors and OS
-.idea/
-.vscode/
-.DS_Store
