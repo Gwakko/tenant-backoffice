@@ -281,6 +281,8 @@ CREATE FUNCTION tb_actor_scopes() RETURNS ltree[] LANGUAGE sql STABLE SECURITY D
 - `tb_node_effective_active` может раскрыть факт неактивного предка выше корня доступа. Это осознанное поведение «эффективной активности» (EC-18, EC-20).
 - `WITH CHECK` политики `nodes_update` дублируется SELECT-политикой: PostgreSQL проверяет новую строку UPDATE и по ней, поэтому одна из двух защит избыточна (defense in depth).
 
+- `INSERT ... ON CONFLICT` по `users` невозможен под `tb_app` для нового пользователя: PostgreSQL проверяет новую строку по SELECT-политике, а ещё не назначенный пользователь ей не проходит. Создание пользователя идёт простым `INSERT` в savepoint без `RETURNING` (M2.6).
+
 ### 5.3 Передача актора в сессию и пул соединений (Р-13)
 
 Порт `port.TxRunner`:

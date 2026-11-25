@@ -80,6 +80,10 @@
 | T-U-39 | `usecase/settings/unset_test.go TestUnsetFallsBack` | | EC-142 |
 | T-U-40 | `usecase/authz/authz_test.go TestRequireNotFoundVersusForbidden` | нет роли (скрытый и несуществующий узел) -> одинаковый `not_found`; роль без права -> `forbidden`; вся матрица роль × право через `Require` | EC-45, EC-54 |
 | T-U-41 | `usecase/auth/session_test.go TestRefreshReuseRevokesFamily` | повтор refresh отзывает семью (эмуляция отката) | EC-106 |
+| T-U-42 | `usecase/member/add_test.go TestAddMemberRoleCeiling` | `admin` не назначает `owner`, `owner` назначает; отказ не создаёт пользователя | EC-33 |
+| T-U-43 | `usecase/member/add_test.go TestAddMemberSameShapeForExistingUser` | форма ответа для нового и существующего пользователя одинакова, пароль существующего не меняется | EC-109 |
+| T-U-44 | `usecase/member/add_test.go TestAddMemberCannotDemoteLastRootOwner` | понижение последнего owner корня через POST members | EC-148 |
+| T-U-45 | `usecase/member/remove_test.go TestRemoveOwnAssignment` | актор снимает своё назначение | EC-42 |
 
 Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpapi` курсор и хэш) входят в `make test-unit`.
 
@@ -140,6 +144,11 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-I-60 | `adapter/postgres/move_test.go TestMoveByAccessRootIsForbidden` | 403 для узла, чей родитель вне поддерева актора; 404 для другой ветки | EC-45, EC-49 |
 | T-I-61 | `adapter/postgres/move_test.go TestActivateAccessRootUnderInactiveAncestor` | активация корня доступа под скрытым неактивным предком | EC-20 |
 | T-I-62 | `adapter/postgres/move_test.go TestNodeReadsOnDB` | корни доступа, курсорная пагинация, цели переноса на настоящей БД | EC-28, EC-32 |
+| T-I-63 | `adapter/postgres/member_test.go TestAddMemberUsersOnDatabase` | создание пользователя без RETURNING, существующий пользователь другой ветки, пароль не логируется | EC-109 |
+| T-I-64 | `adapter/postgres/member_test.go TestAddInactiveUserRollsBack` | назначение откатывается при неактивном пользователе | EC-41 |
+| T-I-65 | `adapter/postgres/member_test.go TestMemberRulesOnDatabase` | потолок ролей и 404 вне поддерева на настоящей RLS | EC-33, EC-34 |
+| T-I-66 | `adapter/postgres/member_test.go TestRemoveOwnAssignmentOnDatabase` | после снятия своего назначения узел даёт 404 | EC-42 |
+| T-I-67 | `adapter/postgres/member_test.go TestListMembersOnDatabase` | inherited только по видимым предкам, пагинация | EC-61 |
 
 Сценарные тесты без EC (обязательны, но в `eccheck` не участвуют): T-I-50 `TestRepositoriesRoundTrip` (CRUD каждого репозитория и маппинг row↔entity), дополняется каждой задачей, добавляющей репозиторий или порт БД; на M2.3 сюда же относится `TestTreeLockSerialises` (вторая транзакция ждёт `TreeLock`, пока первая не завершится).
 

@@ -33,6 +33,12 @@ const (
 	RoleNotGrantable Code = "role_not_grantable"
 )
 
+// Codes of membership use cases.
+const (
+	LastRootOwner Code = "last_root_owner"
+	UserInactive  Code = "user_inactive"
+)
+
 // Codes shared by every use case: absent or hidden objects, missing rights and
 // an unavailable store.
 const (

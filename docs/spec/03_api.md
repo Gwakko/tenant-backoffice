@@ -141,7 +141,7 @@
 | `GET /nodes/{id}/members` | `member.read` | `limit, cursor, inherited=false\|true` | 200 page of `{userId, email, role, nodeId, inheritedFrom: nodeId\|null, grantedAt}`; `inherited=true` добавляет назначения на предках в пределах поддеревьев актора | |
 | `POST /nodes/{id}/members` | `member.manage` + `CanGrant` | `{email, role, initialPassword?}` | 201 `Member`. Если пользователя с email нет — создаётся (нужен `initialPassword`, иначе 400); если есть — получает назначение, `initialPassword` игнорируется, в ответе нет признака «создан/существовал» | 403 `role_not_grantable`, 409 `user_inactive` |
 | `PUT /nodes/{id}/members/{userId}` | `member.manage` + `CanGrant(new)` и `CanRevoke(old)` | `{role}` | 200 `Member` | 403 `role_not_grantable`, 409 `last_root_owner`; 404 если назначения на этом узле нет |
-| `DELETE /nodes/{id}/members/{userId}` | `member.manage` + `CanRevoke` | — | 204 | 409 `last_root_owner` |
+| `DELETE /nodes/{id}/members/{userId}` | `member.manage` + `CanRevoke` | — | 204 | 403 `role_not_grantable`, 404, 409 `last_root_owner` |
 
 ### 5.5 Балансы и операции
 
