@@ -241,7 +241,7 @@ NULL (нет строк) = узел не виден -> 404. Каждый use cas
 
 RLS включается `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` (без FORCE): владелец `tb_owner` обходит политики своих таблиц, что нужно миграциям, seed и SECURITY DEFINER-функциям ниже. `tb_app` политикам подчиняется всегда. Тест T-ISO-15 проверяет атрибуты ролей и что RLS включён на всех таблицах из списка ниже (EC-60).
 
-Функции (владелец `tb_owner`, `SET search_path = public, pg_temp`):
+Функции (владелец `tb_owner`, `SET search_path = pg_catalog, public, pg_temp`):
 
 ```sql
 CREATE FUNCTION tb_actor_id() RETURNS uuid LANGUAGE sql STABLE AS $$
@@ -268,9 +268,18 @@ CREATE FUNCTION tb_actor_scopes() RETURNS ltree[] LANGUAGE sql STABLE SECURITY D
 | `idempotency_keys` | `user_id = tb_actor_id()` | то же | то же | то же |
 | `users` | `id = tb_actor_id() OR id IN (SELECT user_id FROM role_assignments)` | `true` (создание пользователя админом; без назначения он невидим) | `id = tb_actor_id() OR id IN (SELECT user_id FROM role_assignments WHERE node_id IN (SELECT id FROM nodes))` | нет GRANT |
 
-`refresh_tokens` без RLS: в нём нет данных тенантов, доступ только через репозиторий аутентификации по хэшу токена. Аутентификация до появления актора (логин, проверка токена) идёт через SECURITY DEFINER-функции `tb_auth_user_by_email(text)` и `tb_auth_user_by_id(uuid)`, возвращающие `(id, password_hash, status, token_version)`; `tb_app` имеет только EXECUTE на них.
+`refresh_tokens` без RLS: в нём нет данных тенантов, доступ только через репозиторий аутентификации по хэшу токена. Аутентификация до появления актора (логин, проверка токена) идёт через SECURITY DEFINER-функции `tb_auth_user_by_email(text)` и `tb_auth_user_by_id(uuid)`, возвращающие `(id, password_hash, status, token_version)` (по email, для входа) и `(id, status, token_version)` (по id, для обновления токена: хеш пароля не нужен и не возвращается); `tb_app` имеет только EXECUTE на них.
+
+Права на колонки `users` для `tb_app`: `SELECT` без `password_hash` (`SELECT *` падает с 42501), `INSERT` (создание участника с начальным хешем), `UPDATE` только `(status, token_version)`; `DELETE` нет. Хеш пароля после создания меняет единственная функция `tb_set_own_password(p_hash text)` (SECURITY DEFINER, строка выбирается по `tb_actor_id()`, аргументов-идентификаторов нет, без актора ничего не делает). Это закрывает смену пароля чужого пользователя через видимую строку в `users_update`.
 
 Подзапрос `node_id IN (SELECT id FROM nodes)` сам подчиняется политике `nodes`, поэтому видимость всех таблиц выводится из видимости узлов. Рекурсии нет: `tb_actor_scopes()` читает `role_assignments` от имени владельца.
+
+#### Известные ограничения RLS
+
+- RLS изолирует по поддереву, но не проверяет права «роль × действие». Актор с ролью `viewer` на узле на уровне БД может вставить строку в `role_assignments` для видимого узла. Матрицу прав и `CanGrant`/`CanRevoke` проверяет use case (M2.3 и далее), это покрыто тестами уровня use case.
+- `tb_user_id_by_email` позволяет любому актору с областью доступа узнать, существует ли email в системе (оракул существования учётной записи между тенантами, EC-109). Смягчение: ограничение частоты в API (M4) и одинаковое время ответа, не более.
+- `tb_node_effective_active` может раскрыть факт неактивного предка выше корня доступа. Это осознанное поведение «эффективной активности» (EC-18, EC-20).
+- `WITH CHECK` политики `nodes_update` дублируется SELECT-политикой: PostgreSQL проверяет новую строку UPDATE и по ней, поэтому одна из двух защит избыточна (defense in depth).
 
 ### 5.3 Передача актора в сессию и пул соединений (Р-13)
 

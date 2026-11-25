@@ -138,7 +138,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 
 ### 3.3 Изоляция тенантов (T-ISO) — главный критерий
 
-`backend/internal/isolation/`, фабрика `World` (§2). T-ISO-01…10, 16…19 идут через HTTP (`httptest` + реальный `app.BuildAPI`), T-ISO-11…15 — на уровне репозиториев и пула.
+`backend/internal/isolation/`, фабрика `World` (§2). T-ISO-01…10, 16…19 идут через HTTP (`httptest` + реальный `app.BuildAPI`), T-ISO-11…15 и 20…22 — на уровне репозиториев и пула.
 
 | ID | Имя | Проверяет | EC |
 |---|---|---|---|
@@ -161,6 +161,9 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-ISO-17 | `pagination_test.go TestCursorBoundToScope` | | EC-62 |
 | T-ISO-18 | `move_test.go TestCrossBranchMoveByRootOwner` | | EC-63 |
 | T-ISO-19 | `nodes_test.go TestDescendantRoleDoesNotSeeAncestor` | | EC-30 |
+| T-ISO-20 | `rls_writes_test.go TestNodeWritesCannotEscapeBranch`: прямой `UPDATE nodes SET path` в чужую ветку и на путь предка выше корня доступа (42501), смена `parent_id` на узел чужой ветки (23514 или 42501), `DELETE` узлов чужой ветки (0 строк); данные не меняются. Примечание: `WITH CHECK` политики `nodes_update` совпадает с `USING` политики SELECT, а PostgreSQL применяет SELECT-политику и к новой строке UPDATE, поэтому ослабление одного `WITH CHECK` не наблюдаемо (эквивалентная мутация); тест фиксирует поведение в целом | | EC-144 |
+| T-ISO-21 | `rls_writes_test.go TestUserPasswordWritePath`: прямой `UPDATE users SET password_hash` под `tb_app` даёт 42501; `UPDATE` разрешён только на `status`, `token_version`; `tb_set_own_password` меняет хеш только актора и не трогает других (в том числе видимых), без актора ничего не меняет; `SELECT *` по `users` падает; `INSERT` пользователя с начальным хешем работает | | EC-145 |
+| T-ISO-22 | `rls_writes_test.go TestAuthByIDHasNoPasswordHash`: у `tb_auth_user_by_id` нет колонки `password_hash` (`id, status, token_version`), у `tb_auth_user_by_email` она есть | | EC-146 |
 
 ### 3.4 API (T-A)
 

@@ -292,7 +292,7 @@ func TestRLSWithoutUseCaseChecks(t *testing.T) {
 			require.NoError(t, tx.QueryRow(ctx, `SELECT id, password_hash, status, token_version FROM tb_auth_user_by_email($1)`, w.emails[w.adminB]).Scan(&id, &hash, &status, &tv))
 			assert.Equal(t, w.adminB, id)
 			assert.Equal(t, "active", status)
-			require.NoError(t, tx.QueryRow(ctx, `SELECT id, password_hash, status, token_version FROM tb_auth_user_by_id($1)`, w.inactive).Scan(&id, &hash, &status, &tv))
+			require.NoError(t, tx.QueryRow(ctx, `SELECT id, status, token_version FROM tb_auth_user_by_id($1)`, w.inactive).Scan(&id, &status, &tv))
 			assert.Equal(t, "inactive", status)
 			// One user per call, never a list; unknown input gives no row.
 			assert.Zero(t, count(ctx, t, tx, `SELECT * FROM tb_auth_user_by_email('nobody@example.test')`))
@@ -465,7 +465,7 @@ SELECT p.proname, r.rolname, coalesce(p.proconfig, '{}'::text[]),
 		// A new SECURITY DEFINER function must be reviewed and added here on purpose.
 		assert.Equal(t, []string{
 			"tb_actor_scopes", "tb_auth_user_by_email", "tb_auth_user_by_id",
-			"tb_node_effective_active", "tb_user_id_by_email",
+			"tb_node_effective_active", "tb_set_own_password", "tb_user_id_by_email",
 		}, names)
 
 		for _, f := range []string{"tb_actor_id()"} {

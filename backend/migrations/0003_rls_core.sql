@@ -46,13 +46,14 @@ CREATE FUNCTION tb_auth_user_by_email(p_email text)
     FROM users u
    WHERE u.email = lower(p_email) $$;
 
--- Same, selected by user id (the verified subject of an access token).
+-- Same, selected by user id (the verified subject of an access token). Token
+-- refresh needs no credential, so the password hash is deliberately not returned.
 CREATE FUNCTION tb_auth_user_by_id(p_id uuid)
-  RETURNS TABLE (id uuid, password_hash text, status text, token_version bigint)
+  RETURNS TABLE (id uuid, status text, token_version bigint)
   LANGUAGE sql STABLE SECURITY DEFINER
   SET search_path = pg_catalog, public, pg_temp
   AS $$
-  SELECT u.id, u.password_hash, u.status, u.token_version
+  SELECT u.id, u.status, u.token_version
     FROM users u
    WHERE u.id = p_id $$;
 
@@ -67,6 +68,16 @@ CREATE FUNCTION tb_user_id_by_email(p_email text) RETURNS uuid
     FROM users u
    WHERE u.email = lower(p_email)
      AND cardinality(tb_actor_scopes()) > 0 $$;
+
+-- Changes the password hash of the acting user only: the row is picked by
+-- tb_actor_id() and there is no identifier argument. Without an actor nothing
+-- is updated. tb_app has no UPDATE on users.password_hash, so this function is
+-- the only way to change a hash after creation.
+CREATE FUNCTION tb_set_own_password(p_hash text) RETURNS void
+  LANGUAGE sql VOLATILE SECURITY DEFINER
+  SET search_path = pg_catalog, public, pg_temp
+  AS $$
+  UPDATE users SET password_hash = p_hash WHERE id = tb_actor_id() $$;
 
 -- Effective activity of a node: its own status and that of every ancestor, also
 -- those above the actor's access root (hidden by RLS). NULL when the node is
@@ -85,6 +96,7 @@ REVOKE ALL ON FUNCTION tb_actor_scopes() FROM PUBLIC;
 REVOKE ALL ON FUNCTION tb_auth_user_by_email(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION tb_auth_user_by_id(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION tb_user_id_by_email(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION tb_set_own_password(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION tb_node_effective_active(uuid) FROM PUBLIC;
 
 -- nodes: a row is visible and writable when its path lies in an actor subtree.
@@ -93,6 +105,8 @@ CREATE POLICY nodes_select ON nodes FOR SELECT
   USING (path <@ (SELECT tb_actor_scopes()));
 CREATE POLICY nodes_insert ON nodes FOR INSERT
   WITH CHECK (path <@ (SELECT tb_actor_scopes()));
+-- The new row is also checked against nodes_select by PostgreSQL, so WITH CHECK
+-- here is a second, explicit barrier against moving a node out of the branch.
 CREATE POLICY nodes_update ON nodes FOR UPDATE
   USING (path <@ (SELECT tb_actor_scopes()))
   WITH CHECK (path <@ (SELECT tb_actor_scopes()));
@@ -144,16 +158,20 @@ BEGIN
     GRANT EXECUTE ON FUNCTION tb_auth_user_by_email(text) TO tb_app;
     GRANT EXECUTE ON FUNCTION tb_auth_user_by_id(uuid) TO tb_app;
     GRANT EXECUTE ON FUNCTION tb_user_id_by_email(text) TO tb_app;
+    GRANT EXECUTE ON FUNCTION tb_set_own_password(text) TO tb_app;
     GRANT EXECUTE ON FUNCTION tb_node_effective_active(uuid) TO tb_app;
 
     GRANT SELECT, INSERT, UPDATE, DELETE ON nodes TO tb_app;
     GRANT SELECT, INSERT, UPDATE, DELETE ON role_assignments TO tb_app;
 
     -- users: the password hash is never readable through SQL (login reads it
-    -- through tb_auth_user_by_*); no DELETE.
+    -- through tb_auth_user_by_email) and never updatable directly (own password
+    -- through tb_set_own_password); only status and token_version are updatable;
+    -- no DELETE.
     REVOKE ALL ON users FROM tb_app;
     GRANT SELECT (id, email, status, token_version, created_at) ON users TO tb_app;
-    GRANT INSERT, UPDATE ON users TO tb_app;
+    GRANT INSERT ON users TO tb_app;
+    GRANT UPDATE (status, token_version) ON users TO tb_app;
 
     -- refresh_tokens: no tenant data, no RLS; only the state columns change.
     REVOKE ALL ON refresh_tokens FROM tb_app;
@@ -182,6 +200,7 @@ DROP POLICY nodes_select ON nodes;
 ALTER TABLE nodes DISABLE ROW LEVEL SECURITY;
 
 DROP FUNCTION tb_node_effective_active(uuid);
+DROP FUNCTION tb_set_own_password(text);
 DROP FUNCTION tb_user_id_by_email(text);
 DROP FUNCTION tb_auth_user_by_id(uuid);
 DROP FUNCTION tb_auth_user_by_email(text);
