@@ -56,21 +56,31 @@ linters:
           msg: os.Exit is allowed only in cmd/*/main.go
     depguard:
       rules:
-        # T-ARCH-01 duplicate: domain imports only the standard library
-        # plus the allowed packages, and never context.
+        # T-ARCH-01 duplicate: domain imports only the allow-list below.
+        # Keep it identical to domainAllowed in backend/archtest/layers_test.go;
+        # to extend it, add the package in both places and explain why.
         domain:
           list-mode: strict
           files:
             - '**/internal/domain/**'
             - '!$test'
           allow:
-            - $gostd
-            - golang.org/x/text
+            - errors
+            - fmt
+            - strings
+            - strconv
+            - unicode
+            - unicode/utf8
+            - time
+            - sort
+            - slices
+            - maps
+            - math
+            - cmp
             - github.com/google/uuid
+            - golang.org/x/text/cases
+            - golang.org/x/text/unicode/norm
             - github.com/Gwakko/tenant-backoffice/backend/internal/domain
-          deny:
-            - pkg: context
-              desc: domain has no context (spec 00 section 5)
         usecase:
           files:
             - '**/internal/usecase/**'

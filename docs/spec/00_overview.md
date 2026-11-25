@@ -152,7 +152,7 @@ cmd -> app -> adapter -> usecase -> domain
 config <- app, cmd
 ```
 
-- `domain`: только стандартная библиотека. Сущности и value objects без тегов, с конструкторами, которые проверяют инварианты. Нет `context`, нет SQL, нет времени «сейчас» (время передаётся аргументом).
+- `domain`: только белый список импортов (чистые пакеты stdlib без ввода-вывода, `uuid`, `golang.org/x/text/cases` и `unicode/norm`, подпакеты `domain`; список в T-ARCH-01). Сущности и value objects без тегов, с конструкторами, которые проверяют инварианты. Нет `context`, нет SQL, нет времени «сейчас» (время передаётся аргументом).
 - `usecase`: импортирует `domain` и `usecase/port`. Интерфейсы портов объявляет потребитель (пакет use case или `usecase/port` для общих).
 - `adapter`: реализует порты, импортирует `usecase` и `domain`. Никогда не импортирует другой адаптер, кроме `adapter/httpapi/gen` внутри `httpapi`.
 - `app`: composition root, единственное место, где создаются адаптеры и use cases. Построители по точке входа: `BuildAPI(cfg) (*API, error)`, `BuildMigrate(cfg)`, `BuildSeed(cfg)`.

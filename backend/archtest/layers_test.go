@@ -69,9 +69,43 @@ func importsOf(f *ast.File) []string {
 	return out
 }
 
-func isStdlib(p string) bool {
-	first, _, _ := strings.Cut(p, "/")
-	return !strings.Contains(first, ".")
+// domainAllowed is the single allow-list of imports for internal/domain/**
+// (non-test files). Anything not listed here is a T-ARCH-01 violation.
+// To extend it, add the package here AND to the "domain" rule in
+// .golangci.yml (depguard), and explain why in the comment next to it.
+// Entries marked "reserved" are pure and expected by planned domain code
+// (money, formatting) but not imported yet.
+var domainAllowed = []string{
+	// Standard library: pure packages only, no I/O and no infrastructure.
+	"errors",       // sentinel and wrapped errors
+	"fmt",          // error formatting (reserved: Errorf wrapping)
+	"strings",      // name normalization and validation
+	"strconv",      // number parsing and formatting (reserved)
+	"unicode",      // character classes in name validation
+	"unicode/utf8", // rune-length limits
+	"time",         // time values passed as arguments (never time.Now in domain)
+	"sort",         // deterministic ordering (reserved)
+	"slices",       // slice helpers (reserved)
+	"maps",         // map helpers (reserved)
+	"math",         // overflow bounds for money.Amount (reserved)
+	"cmp",          // ordering helpers (reserved)
+	// External.
+	"github.com/google/uuid",         // identifier type
+	"golang.org/x/text/cases",        // case folding of names
+	"golang.org/x/text/unicode/norm", // Unicode normalization of names
+	// Internal: domain sub-packages may import each other.
+	modulePath + "/internal/domain",
+}
+
+// domainImportAllowed reports whether imp is on the domain allow-list.
+// Module and x/text entries match as path prefixes, the rest exactly.
+func domainImportAllowed(imp string) bool {
+	for _, a := range domainAllowed {
+		if imp == a || (strings.Contains(a, ".") && hasPathPrefix(imp, a)) {
+			return true
+		}
+	}
+	return false
 }
 
 func hasPathPrefix(p, prefix string) bool {
@@ -121,12 +155,8 @@ func layerViolations(t *testing.T, root string) []string {
 			inModule := hasPathPrefix(imp, modulePath)
 			switch {
 			case strings.HasPrefix(rel, "internal/domain/"):
-				allowed := isStdlib(imp) ||
-					hasPathPrefix(imp, "golang.org/x/text") ||
-					imp == "github.com/google/uuid" ||
-					hasPathPrefix(imp, internal+"domain")
-				if !allowed || imp == "context" {
-					add(rel, "domain must not import %s", imp)
+				if !domainImportAllowed(imp) {
+					add(rel, "domain must not import %s (not on the domain allow-list)", imp)
 				}
 			case strings.HasPrefix(rel, "internal/usecase/"):
 				switch {
@@ -185,6 +215,12 @@ func TestLayerImportsDetectsViolations(t *testing.T) {
 	}
 	want := map[string]int{
 		"internal/domain/bad/bad.go":      3, // pgx, uuid-like foreign module, context
+		"internal/domain/bad/sql.go":      1, // database/sql
+		"internal/domain/bad/http.go":     1, // net/http
+		"internal/domain/bad/os.go":       1, // os
+		"internal/domain/bad/json.go":     1, // encoding/json
+		"internal/domain/bad/adapter.go":  1, // adapter
+		"internal/domain/bad/mixed.go":    2, // log/slog and crypto/sha256 flagged, strings fine
 		"internal/usecase/bad/bad.go":     4, // adapter, app, pgx, net/http
 		"internal/adapter/a/bad.go":       1, // another adapter
 		"internal/adapter/httpapi/bad.go": 1, // httpapi -> postgres
