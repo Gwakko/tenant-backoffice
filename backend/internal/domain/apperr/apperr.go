@@ -25,6 +25,14 @@ const (
 	ChildrenLimit     Code = "children_limit"
 )
 
+// Codes used by the role and user domains.
+const (
+	InvalidEmail     Code = "invalid_email"
+	InvalidPassword  Code = "invalid_password"
+	InvalidRole      Code = "invalid_role"
+	RoleNotGrantable Code = "role_not_grantable"
+)
+
 // Error is a domain error with a code, a human-readable message and optional
 // per-field details.
 type Error struct {
