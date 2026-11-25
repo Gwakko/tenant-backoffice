@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/user"
 )
 
 // ChildCursor is the keyset position after which the next page of children
@@ -12,6 +14,23 @@ import (
 type ChildCursor struct {
 	NameKey string
 	ID      node.ID
+}
+
+// ChildFilter narrows a list of children.
+type ChildFilter struct {
+	// Status keeps only nodes with this own status; empty keeps all.
+	Status node.Status
+	// Query keeps nodes whose name key contains it; it must already be
+	// lower-cased. Empty keeps all.
+	Query string
+}
+
+// AccessRoot is a node at which the actor holds a role that is not inherited
+// from a visible ancestor: the top of one branch the actor can see.
+// Node.AncestorsActive is not set.
+type AccessRoot struct {
+	Node node.Node
+	Role role.Role
 }
 
 // NodeRepo stores tenant tree nodes. Every method needs the transaction of the
@@ -44,4 +63,19 @@ type NodeRepo interface {
 	// Move rewrites the paths of the moved node and its descendants. expected is
 	// the subtree size read under the tree lock; another row count aborts.
 	Move(ctx context.Context, tx Tx, plan node.MovePlan, expected int, now time.Time) error
+	// FindChildren is ListChildren with a filter on status and name.
+	FindChildren(ctx context.Context, tx Tx, parent node.ID, f ChildFilter, after *ChildCursor, limit int) ([]node.Node, error)
+	// ListActiveByType returns visible, effectively active nodes of one type
+	// whose name key contains query (lower-cased; empty keeps all), ordered by
+	// (name key, id) after the cursor.
+	ListActiveByType(ctx context.Context, tx Tx, t node.Type, query string, after *ChildCursor, limit int) ([]node.Node, error)
+	// Ancestors returns the visible nodes on the path to id, the node itself
+	// last: it starts at the actor's access root, not at the tree root.
+	// AncestorsActive of the result is not set.
+	Ancestors(ctx context.Context, tx Tx, id node.ID) ([]node.Node, error)
+	// DeleteStats reports what blocks deleting the node. Until the ledger
+	// exists (M3) only Children is filled; Balance and HasOperations are zero.
+	DeleteStats(ctx context.Context, tx Tx, id node.ID) (node.DeleteStats, error)
+	// AccessRoots returns the actor's access roots, ordered by path.
+	AccessRoots(ctx context.Context, tx Tx, actor user.ActorID) ([]AccessRoot, error)
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
+	uc "github.com/Gwakko/tenant-backoffice/backend/internal/usecase/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/port"
 )
 
@@ -445,4 +446,42 @@ func nodeUnder(parent node.Node, name string) (node.Node, error) {
 		return node.Node{}, err
 	}
 	return node.NewChild(parent, node.ID(uuid.Must(uuid.NewV7())), node.TypeUnit, nm, time.Now().UTC().Truncate(time.Microsecond))
+}
+
+// Test-ID: T-I-07
+func TestDeleteCascades(t *testing.T) {
+	w := newWorld(t)
+	c := w.useCases()
+	ctx := context.Background()
+	del := func(who, key string) error {
+		_, err := c.del.Execute(ctx, uc.DeleteNodeInput{Actor: w.users[who], RequestID: "t", NodeID: w.id(key)})
+		return err
+	}
+
+	// A node with children, the root and a node the actor may not delete stay.
+	requireApp(t, del("ownerRoot", "A1"), apperr.NodeHasChildren)
+	requireApp(t, del("ownerRoot", "root"), apperr.RootImmutable)
+	requireApp(t, del("adminA", "A1u1"), apperr.Forbidden) // admin: no node.delete on the parent
+	requireApp(t, del("adminB", "A1u1"), apperr.NotFound)
+	assert.Empty(t, c.audit.actions())
+
+	// An empty unit with a role assignment (viewerA1u1) goes together with the assignment.
+	var assignments int
+	require.NoError(t, w.db.Owner.QueryRow(ctx, `SELECT count(*) FROM role_assignments WHERE node_id = $1`,
+		uuid.UUID(w.id("A1u1"))).Scan(&assignments))
+	require.Equal(t, 1, assignments)
+
+	require.NoError(t, del("ownerRoot", "A1u1"))
+	require.NoError(t, w.db.Owner.QueryRow(ctx, `SELECT count(*) FROM role_assignments WHERE node_id = $1`,
+		uuid.UUID(w.id("A1u1"))).Scan(&assignments))
+	assert.Zero(t, assignments, "assignments are removed by cascade")
+	var left int
+	require.NoError(t, w.db.Owner.QueryRow(ctx, `SELECT count(*) FROM nodes WHERE id = $1`, uuid.UUID(w.id("A1u1"))).Scan(&left))
+	assert.Zero(t, left)
+	require.Equal(t, []string{"node.deleted"}, c.audit.actions())
+	assert.Equal(t, w.id("A1"), c.audit.entries[0].NodeID, "the record is on the parent")
+	assert.Empty(t, w.violations())
+
+	// Deleting by id as someone with no access to the parent any more is not_found.
+	requireApp(t, del("ownerRoot", "A1u1"), apperr.NotFound)
 }

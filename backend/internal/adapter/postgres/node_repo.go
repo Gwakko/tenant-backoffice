@@ -11,6 +11,8 @@ import (
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/user"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/port"
 )
 
@@ -33,13 +35,32 @@ VALUES ($1, $2, $3, $4::ltree, $5, $6, $7, $8, $9)`
 
 	deleteNode = `DELETE FROM nodes WHERE id = $1`
 
-	selectChildren = `SELECT ` + nodeColumns + ` FROM nodes n
+	findChildren = `SELECT ` + nodeColumns + ` FROM nodes n
  WHERE n.parent_id = $1
- ORDER BY n.name_key, n.id LIMIT $2`
+   AND ($2::text = '' OR n.status = $2)
+   AND ($3::text = '' OR strpos(n.name_key, $3) > 0)
+   AND ($4::text IS NULL OR (n.name_key, n.id) > ($4::text, $5::uuid))
+ ORDER BY n.name_key, n.id LIMIT $6`
 
-	selectChildrenAfter = `SELECT ` + nodeColumns + ` FROM nodes n
- WHERE n.parent_id = $1 AND (n.name_key, n.id) > ($2, $3)
- ORDER BY n.name_key, n.id LIMIT $4`
+	// tb_node_effective_active is NULL for an invisible node; IS TRUE drops it.
+	listActiveByType = `SELECT ` + nodeColumns + ` FROM nodes n
+ WHERE n.type = $1 AND n.status = 'active' AND tb_node_effective_active(n.id) IS TRUE
+   AND ($2::text = '' OR strpos(n.name_key, $2) > 0)
+   AND ($3::text IS NULL OR (n.name_key, n.id) > ($3::text, $4::uuid))
+ ORDER BY n.name_key, n.id LIMIT $5`
+
+	selectAncestors = `SELECT ` + nodeColumns + ` FROM nodes n WHERE n.path @> $1::ltree ORDER BY nlevel(n.path)`
+
+	// An access root is an assignment of the user on a node that has no other
+	// assignment of the user above it.
+	selectAccessRoots = `SELECT ` + nodeColumns + `, ra.role
+  FROM role_assignments ra
+  JOIN nodes n ON n.id = ra.node_id
+  JOIN users u ON u.id = ra.user_id AND u.status = 'active'
+ WHERE ra.user_id = $1
+   AND NOT EXISTS (SELECT 1 FROM role_assignments rb JOIN nodes b ON b.id = rb.node_id
+                    WHERE rb.user_id = ra.user_id AND b.id <> n.id AND b.path @> n.path)
+ ORDER BY n.path`
 
 	countChildren = `SELECT count(*) FROM nodes WHERE parent_id = $1`
 
@@ -168,6 +189,11 @@ func (r *NodeRepo) Delete(ctx context.Context, tx port.Tx, id node.ID) error {
 
 // ListChildren implements port.NodeRepo.
 func (r *NodeRepo) ListChildren(ctx context.Context, tx port.Tx, parent node.ID, after *port.ChildCursor, limit int) ([]node.Node, error) {
+	return r.FindChildren(ctx, tx, parent, port.ChildFilter{}, after, limit)
+}
+
+// FindChildren implements port.NodeRepo.
+func (r *NodeRepo) FindChildren(ctx context.Context, tx port.Tx, parent node.ID, f port.ChildFilter, after *port.ChildCursor, limit int) ([]node.Node, error) {
 	if limit < 1 {
 		return nil, fmt.Errorf("postgres: list children: limit must be positive, got %d", limit)
 	}
@@ -182,12 +208,11 @@ func (r *NodeRepo) ListChildren(ctx context.Context, tx port.Tx, parent node.ID,
 	if err != nil {
 		return nil, err
 	}
-	var rows pgx.Rows
-	if after == nil {
-		rows, err = t.Query(ctx, selectChildren, uid(parent), limit)
-	} else {
-		rows, err = t.Query(ctx, selectChildrenAfter, uid(parent), after.NameKey, uid(after.ID), limit)
+	var cursorKey, cursorID any
+	if after != nil {
+		cursorKey, cursorID = after.NameKey, uid(after.ID)
 	}
+	rows, err := t.Query(ctx, findChildren, uid(parent), string(f.Status), f.Query, cursorKey, cursorID, limit)
 	if err != nil {
 		return nil, mapError(r.log, "list children", resourceNode, err)
 	}
@@ -298,4 +323,101 @@ func collectNodes(rows pgx.Rows) ([]node.Node, error) {
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// ListActiveByType implements port.NodeRepo.
+func (r *NodeRepo) ListActiveByType(ctx context.Context, tx port.Tx, typ node.Type, query string, after *port.ChildCursor, limit int) ([]node.Node, error) {
+	if limit < 1 {
+		return nil, fmt.Errorf("postgres: list by type: limit must be positive, got %d", limit)
+	}
+	t, err := unwrap(tx)
+	if err != nil {
+		return nil, err
+	}
+	var cursorKey, cursorID any
+	if after != nil {
+		cursorKey, cursorID = after.NameKey, uid(after.ID)
+	}
+	rows, err := t.Query(ctx, listActiveByType, string(typ), query, cursorKey, cursorID, limit)
+	if err != nil {
+		return nil, mapError(r.log, "list by type", resourceNode, err)
+	}
+	nodes, err := collectNodes(rows)
+	if err != nil {
+		return nil, mapError(r.log, "list by type", resourceNode, err)
+	}
+	// The query keeps only effectively active nodes.
+	for i := range nodes {
+		nodes[i].AncestorsActive = true
+	}
+	return nodes, nil
+}
+
+// Ancestors implements port.NodeRepo.
+func (r *NodeRepo) Ancestors(ctx context.Context, tx port.Tx, id node.ID) ([]node.Node, error) {
+	n, err := r.Get(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	t, err := unwrap(tx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := t.Query(ctx, selectAncestors, pathText(n.Path))
+	if err != nil {
+		return nil, mapError(r.log, "ancestors", resourceNode, err)
+	}
+	nodes, err := collectNodes(rows)
+	if err != nil {
+		return nil, mapError(r.log, "ancestors", resourceNode, err)
+	}
+	return nodes, nil
+}
+
+// DeleteStats implements port.NodeRepo. The balance and the operation history
+// live in tables that arrive with M3; until then only the children count is
+// known.
+func (r *NodeRepo) DeleteStats(ctx context.Context, tx port.Tx, id node.ID) (node.DeleteStats, error) {
+	if _, err := r.Get(ctx, tx, id); err != nil {
+		return node.DeleteStats{}, err
+	}
+	children, err := r.CountChildren(ctx, tx, id)
+	if err != nil {
+		return node.DeleteStats{}, err
+	}
+	return node.DeleteStats{Children: children}, nil
+}
+
+// AccessRoots implements port.NodeRepo.
+func (r *NodeRepo) AccessRoots(ctx context.Context, tx port.Tx, actor user.ActorID) ([]port.AccessRoot, error) {
+	t, err := unwrap(tx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := t.Query(ctx, selectAccessRoots, uid(node.ID(actor)))
+	if err != nil {
+		return nil, mapError(r.log, "access roots", resourceNode, err)
+	}
+	defer rows.Close()
+	var out []port.AccessRoot
+	for rows.Next() {
+		var row nodeRow
+		var raw string
+		if err := rows.Scan(append(row.scan(), &raw)...); err != nil {
+			return nil, mapError(r.log, "access roots", resourceNode, err)
+		}
+		n, err := row.toNode()
+		if err != nil {
+			return nil, err
+		}
+		ro, err := role.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("postgres: access roots: %w", err)
+		}
+		out = append(out, port.AccessRoot{Node: n, Role: ro})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, mapError(r.log, "access roots", resourceNode, err)
+	}
+	return out, nil
 }
