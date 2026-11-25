@@ -51,8 +51,19 @@ keys:
 	test -f keys/cursor.env || echo "TB_CURSOR_KEY=$$(openssl rand -base64 32)" > keys/cursor.env
 
 # Targets below stay stubs (fail loudly) until the milestone that owns them.
-migrate seed gen gen-check test-int test-iso test-api migrate-roundtrip ec-check lint-web typecheck build:
+seed gen gen-check test-iso test-api ec-check lint-web typecheck build:
 	@echo "$@: not implemented yet"; exit 1
+
+# Applies migrations to the application database as tb_owner (TB_DB_MIGRATE_URL).
+migrate:
+	cd backend && $(GO) go run ./cmd/migrate up
+
+# up -> down to 0 -> up on a scratch database created through TB_TEST_DB_ADMIN_URL (T-CI-01).
+migrate-roundtrip:
+	cd backend && $(GO) go run ./cmd/migrate roundtrip
+
+test-int:
+	cd backend && $(GO) go test -race -tags integration $(GOTESTFLAGS) ./...
 
 # Nothing to run yet; succeed until the web client and Playwright suite exist.
 test-web e2e e2e-inner:
