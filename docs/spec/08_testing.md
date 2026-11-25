@@ -222,6 +222,18 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 
 Набор линтеров golangci-lint v2 (проверить имена командой `golangci-lint linters` в M1.4): `errcheck, govet, staticcheck, unused, ineffassign, revive, gosec, bodyclose, sqlclosecheck, rowserrcheck, errorlint, noctx, contextcheck, exhaustive, forbidigo, depguard, gocritic, misspell, nolintlint, usestdlibvars`; форматтеры `gofumpt, goimports`. `//nolint` только с указанием линтера и причины (`nolintlint` `require-explanation`, `require-specific`).
 
+### 3.7a Каркас (T-CFG, T-HEALTH; добавлено при M1.1)
+
+Эти тесты появились при реализации каркаса и не привязаны к EC (общие свойства загрузки конфигурации и проб живости). Входят в `make test-unit`.
+
+| ID | Что проверяет |
+|---|---|
+| T-CFG-01 | `config.Load` без обязательной переменной возвращает ошибку с именем переменной |
+| T-CFG-02 | значения по умолчанию (`TB_LOG_LEVEL`, `TB_LOG_FORMAT`) |
+| T-CFG-03 | недопустимый уровень или формат журнала отвергаются |
+| T-HEALTH-01 | `GET /healthz` отвечает 200 `{"status":"ok"}` |
+| T-HEALTH-02 | `GET /readyz`: без проверок готовности 503, с падающей проверкой 503, с успешной 200 |
+
 ### 3.8 Инфраструктура (T-CI)
 
 | ID | Где | Проверяет | EC |
