@@ -96,6 +96,23 @@ func newDB(tb testing.TB, fromTemplate bool) *DB {
 	return db
 }
 
+// NewAppPool opens an extra pool as tb_app with at most maxConns connections
+// (a pool of one proves that a connection is reused between transactions). The
+// pool is closed when the test ends.
+func (d *DB) NewAppPool(tb testing.TB, maxConns int32) *pgxpool.Pool {
+	tb.Helper()
+	adminURL, ok := config.TestDBAdminURL()
+	if !ok {
+		tb.Fatal("TB_TEST_DB_ADMIN_URL is required")
+	}
+	p, err := poolWithMax(context.Background(), adminURL, d.Name, "tb_app", maxConns)
+	if err != nil {
+		tb.Fatalf("testkit: %v", err)
+	}
+	tb.Cleanup(p.Close)
+	return p
+}
+
 // Exists reports whether a database with this name exists on the server.
 func Exists(ctx context.Context, tb testing.TB, name string) bool {
 	tb.Helper()
@@ -119,6 +136,10 @@ func Exists(ctx context.Context, tb testing.TB, name string) bool {
 // credentials are reused, so the shared roles never get their passwords changed
 // and parallel test packages cannot lock each other out.
 func pool(ctx context.Context, adminURL, dbName, role string) (*pgxpool.Pool, error) {
+	return poolWithMax(ctx, adminURL, dbName, role, 0)
+}
+
+func poolWithMax(ctx context.Context, adminURL, dbName, role string, maxConns int32) (*pgxpool.Pool, error) {
 	u, err := withDatabase(adminURL, dbName)
 	if err != nil {
 		return nil, err
@@ -126,6 +147,9 @@ func pool(ctx context.Context, adminURL, dbName, role string) (*pgxpool.Pool, er
 	cfg, err := pgxpool.ParseConfig(u)
 	if err != nil {
 		return nil, fmt.Errorf("parse pool config: %w", err)
+	}
+	if maxConns > 0 {
+		cfg.MaxConns = maxConns
 	}
 	cfg.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
 		_, err := c.Exec(ctx, "SET ROLE "+quote(role))

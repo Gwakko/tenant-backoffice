@@ -51,7 +51,7 @@ keys:
 	test -f keys/cursor.env || echo "TB_CURSOR_KEY=$$(openssl rand -base64 32)" > keys/cursor.env
 
 # Targets below stay stubs (fail loudly) until the milestone that owns them.
-seed gen gen-check test-iso test-api lint-web typecheck build:
+seed gen gen-check test-api lint-web typecheck build:
 	@echo "$@: not implemented yet"; exit 1
 
 # Applies migrations to the application database as tb_owner (TB_DB_MIGRATE_URL).
@@ -64,6 +64,10 @@ migrate-roundtrip:
 
 test-int:
 	cd backend && $(GO) go test -race -tags integration $(GOTESTFLAGS) ./...
+
+# Tenant isolation suite (T-ISO): real Postgres, connected as tb_app.
+test-iso:
+	cd backend && $(GO) go test -race -count=1 -tags integration $(GOTESTFLAGS) ./internal/isolation/...
 
 # Nothing to run yet; succeed until the web client and Playwright suite exist.
 test-web e2e e2e-inner:
@@ -107,8 +111,8 @@ ci: .env
 ci-inner: ci-go ci-web
 
 # Goal list per spec 08 section 5: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api ec-check.
-# gen-check (M2.x), test-iso (M3.x) and test-api (M4.x) are still stubs; ec-check (M1.7, soft) stays out of ci-go until M6.3 makes it strict and are added as they land.
-ci-go: lint-go check-hosts test-unit migrate-roundtrip test-int
+# gen-check (M2.x) and test-api (M4.x) are still stubs; ec-check (M1.7, soft) stays out of ci-go until M6.3 makes it strict; they are added as they land.
+ci-go: lint-go check-hosts test-unit migrate-roundtrip test-int test-iso
 
 # Goal list per spec: npm ci typecheck lint-web test-web build. Only test-web exists until the web client (M5.x).
 ci-web: test-web
