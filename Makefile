@@ -16,7 +16,7 @@ TB_JWT_ACTIVE_KID ?= k2026a
 GOTESTFLAGS ?=
 
 .PHONY: help env up down logs db-bootstrap keys migrate seed gen gen-check lint lint-go lint-web typecheck \
-	test-unit test-int test-iso test-api test-web migrate-roundtrip ec-check check-hosts build \
+	test-unit test-int test-iso test-api test-web migrate-roundtrip ec-check ec-report check-hosts build \
 	ci ci-inner ci-go ci-web e2e e2e-inner
 
 help:
@@ -51,7 +51,7 @@ keys:
 	test -f keys/cursor.env || echo "TB_CURSOR_KEY=$$(openssl rand -base64 32)" > keys/cursor.env
 
 # Targets below stay stubs (fail loudly) until the milestone that owns them.
-seed gen gen-check test-iso test-api ec-check lint-web typecheck build:
+seed gen gen-check test-iso test-api lint-web typecheck build:
 	@echo "$@: not implemented yet"; exit 1
 
 # Applies migrations to the application database as tb_owner (TB_DB_MIGRATE_URL).
@@ -77,6 +77,14 @@ lint-go:
 test-unit:
 	cd backend && $(GO) go test -race $(GOTESTFLAGS) ./...
 
+# Edge-case coverage (T-CI-05, spec 11). Soft mode: report only, never fails on gaps.
+# Strict mode (no -soft) becomes part of ci-go in M6.3.
+ec-check:
+	cd backend && $(GO) go run ./tools/eccheck -soft
+
+ec-report:
+	cd backend && $(GO) go run ./tools/eccheck -soft -markdown
+
 # Hosts must come from the environment, never hard-coded into code or scripts (T-CI-04).
 # Service hostnames in connection strings, plus localhost/127.0.0.1 literals in tests and web sources.
 CHECK_HOSTS_PATHS := $(wildcard web/e2e web/src)
@@ -99,7 +107,7 @@ ci: .env
 ci-inner: ci-go ci-web
 
 # Goal list per spec 08 section 5: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api ec-check.
-# gen-check (M2.x), test-iso (M3.x), test-api (M4.x) and ec-check (M1.7) are still stubs and are added as they land.
+# gen-check (M2.x), test-iso (M3.x) and test-api (M4.x) are still stubs; ec-check (M1.7, soft) stays out of ci-go until M6.3 makes it strict and are added as they land.
 ci-go: lint-go check-hosts test-unit migrate-roundtrip test-int
 
 # Goal list per spec: npm ci typecheck lint-web test-web build. Only test-web exists until the web client (M5.x).

@@ -110,8 +110,8 @@ linters:
       - path: _test\.go
         linters: [forbidigo]
         text: 'os\.(Getenv|LookupEnv)'
-      # cmd may call os.Exit.
-      - path: (^|/)cmd/
+      # cmd and tools may call os.Exit.
+      - path: (^|/)(cmd|tools)/
         linters: [forbidigo]
         text: 'os\.Exit'
       - path: _test\.go
