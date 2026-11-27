@@ -38,6 +38,11 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
+      // TanStack Router redirects are thrown (a Response subtype), everything else must be an Error.
+      '@typescript-eslint/only-throw-error': [
+        'error',
+        { allow: [{ from: 'package', package: '@tanstack/router-core', name: 'Redirect' }] },
+      ],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',
     },

@@ -4,12 +4,17 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import './index.css';
+import { createApiClient } from './api/client';
+import { sessionPort } from './auth/service';
+import { wireSessionLoss } from './auth/wire';
 import { createAppRouter } from './router';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
-const router = createAppRouter(queryClient);
+const api = createApiClient({ session: sessionPort });
+const router = createAppRouter(queryClient, api);
+wireSessionLoss(queryClient, router);
 
 const container = document.getElementById('root');
 if (!container) {

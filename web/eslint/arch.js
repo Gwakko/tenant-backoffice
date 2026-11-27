@@ -38,6 +38,18 @@ export function archConfig(root) {
       rules: {
         '@typescript-eslint/no-explicit-any': 'error',
         'no-restricted-imports': ['error', { patterns: [parentRelative] }],
+        // Server text is rendered as text only: no raw HTML sinks.
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+            message: 'dangerouslySetInnerHTML is forbidden; render text.',
+          },
+          {
+            selector: "AssignmentExpression[left.property.name=/^(innerHTML|outerHTML)$/]",
+            message: 'Assigning innerHTML/outerHTML is forbidden; render text.',
+          },
+        ],
       },
     },
     {

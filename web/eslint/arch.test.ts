@@ -35,6 +35,8 @@ describe('[T-ARCH-04] web architecture rules', () => {
     ['auth/uses-window-storage.ts', 'no-restricted-properties'],
     ['routes/uses-any.ts', '@typescript-eslint/no-explicit-any'],
     ['routes/uses-console.ts', 'no-console'],
+    ['routes/uses-danger.tsx', 'no-restricted-syntax'],
+    ['routes/uses-inner-html.ts', 'no-restricted-syntax'],
   ])('catches the violation in %s', async (file, rule) => {
     expect(await ruleIds(file)).toContain(rule);
   });
