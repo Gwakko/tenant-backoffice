@@ -48,6 +48,7 @@ type ledgerCases struct {
 	w        *world
 	audit    *recAudit
 	clock    *ledgerClock
+	deps     bal.Deps
 	credit   *bal.Credit
 	debit    *bal.Debit
 	transfer *bal.Transfer
@@ -64,7 +65,7 @@ func (w *world) ledgerCases() *ledgerCases {
 		Limits: postgres.NewLimitReader(log), Audit: a, Clock: clk, IDs: v7IDs{},
 	}
 	return &ledgerCases{
-		w: w, audit: a, clock: clk, credit: bal.NewCredit(d), debit: bal.NewDebit(d),
+		w: w, audit: a, clock: clk, deps: d, credit: bal.NewCredit(d), debit: bal.NewDebit(d),
 		transfer: bal.NewTransfer(d), get: bal.NewGetBalance(d),
 	}
 }
