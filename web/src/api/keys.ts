@@ -13,6 +13,8 @@ export const keys = {
   children: (nodeId: string, filters?: Filters) =>
     filters === undefined ? (['children', nodeId] as const) : (['children', nodeId, filters] as const),
   node: (nodeId: string) => ['node', nodeId] as const,
+  moveTargets: (nodeId: string, filters?: Filters) =>
+    filters === undefined ? (['move-targets', nodeId] as const) : (['move-targets', nodeId, filters] as const),
   balance: (nodeId: string) => ['balance', nodeId] as const,
   perms: (nodeId: string) => ['perms', nodeId] as const,
   settings: (nodeId: string) => ['settings', nodeId] as const,
@@ -26,4 +28,14 @@ export const keys = {
     filters === undefined ? (['report-children', nodeId] as const) : (['report-children', nodeId, filters] as const),
   audit: (scopeNodeId: string, filters?: Filters) =>
     filters === undefined ? (['audit', scopeNodeId] as const) : (['audit', scopeNodeId, filters] as const),
+} as const;
+
+// Prefixes for invalidation across scopes: a balance operation does not know which scope node
+// of the history or the audit shows it, so it refreshes every list under the name.
+export const keyPrefixes = {
+  children: () => ['children'] as const,
+  operations: () => ['operations'] as const,
+  audit: () => ['audit'] as const,
+  reportSummary: () => ['report-summary'] as const,
+  reportChildren: () => ['report-children'] as const,
 } as const;

@@ -17,6 +17,8 @@ beforeAll(() => {
 });
 beforeEach(() => {
   resetAuthState();
+  // The sidebar tree of the root layout reads /me for every signed-in page.
+  server.use(http.get(`${baseUrl}/me`, () => HttpResponse.json({ ...testUser, accessRoots: [] })));
 });
 afterEach(() => {
   server.resetHandlers();
@@ -91,7 +93,9 @@ describe('routing and session', () => {
     let refreshes = 0;
     let meCalls = 0;
     server.use(
-      http.get(`${baseUrl}/me`, () => {
+      // Only the probes of this test get 401; the sidebar reads /me without the probe header.
+      http.get(`${baseUrl}/me`, ({ request }) => {
+        if (request.headers.get('X-Probe') === null) return HttpResponse.json({ ...testUser, accessRoots: [] });
         meCalls += 1;
         return problemResponse(401, 'token_expired');
       }),
@@ -104,10 +108,15 @@ describe('routing and session', () => {
     setSession(tokenBody('stale-token'));
     const app = renderApp('/?tab=ops');
     await screen.findByText(/Signed in as/);
-    app.queryClient.setQueryData(['me'], { id: testUser.id });
-    expect(app.queryClient.getQueryCache().getAll()).toHaveLength(1);
+    app.queryClient.setQueryData(['node', 'n1'], { id: testUser.id });
+    expect(app.queryClient.getQueryCache().getAll().length).toBeGreaterThan(0);
 
-    const results = await Promise.all([app.api.client.GET('/me'), app.api.client.GET('/me'), app.api.client.GET('/me')]);
+    const probe = { headers: { 'X-Probe': '1' } };
+    const results = await Promise.all([
+      app.api.client.GET('/me', probe),
+      app.api.client.GET('/me', probe),
+      app.api.client.GET('/me', probe),
+    ]);
 
     expect(results.map((r) => r.response.status)).toEqual([401, 401, 401]);
     expect(refreshes).toBe(1);

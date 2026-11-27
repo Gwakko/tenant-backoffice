@@ -11,6 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as NodesNodeIdRouteImport } from './routes/nodes.$nodeId'
+import { Route as NodesNodeIdIndexRouteImport } from './routes/nodes.$nodeId.index'
+import { Route as NodesNodeIdMembersRouteImport } from './routes/nodes.$nodeId.members'
+import { Route as NodesNodeIdSettingsRouteImport } from './routes/nodes.$nodeId.settings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +26,81 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NodesNodeIdRoute = NodesNodeIdRouteImport.update({
+  id: '/nodes/$nodeId',
+  path: '/nodes/$nodeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NodesNodeIdIndexRoute = NodesNodeIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => NodesNodeIdRoute,
+} as any)
+const NodesNodeIdMembersRoute = NodesNodeIdMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => NodesNodeIdRoute,
+} as any)
+const NodesNodeIdSettingsRoute = NodesNodeIdSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => NodesNodeIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/nodes/$nodeId': typeof NodesNodeIdRouteWithChildren
+  '/nodes/$nodeId/members': typeof NodesNodeIdMembersRoute
+  '/nodes/$nodeId/settings': typeof NodesNodeIdSettingsRoute
+  '/nodes/$nodeId/': typeof NodesNodeIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/nodes/$nodeId/members': typeof NodesNodeIdMembersRoute
+  '/nodes/$nodeId/settings': typeof NodesNodeIdSettingsRoute
+  '/nodes/$nodeId': typeof NodesNodeIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/nodes/$nodeId': typeof NodesNodeIdRouteWithChildren
+  '/nodes/$nodeId/members': typeof NodesNodeIdMembersRoute
+  '/nodes/$nodeId/settings': typeof NodesNodeIdSettingsRoute
+  '/nodes/$nodeId/': typeof NodesNodeIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/nodes/$nodeId'
+    | '/nodes/$nodeId/members'
+    | '/nodes/$nodeId/settings'
+    | '/nodes/$nodeId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login'
-  id: '__root__' | '/' | '/login'
+  to:
+    | '/'
+    | '/login'
+    | '/nodes/$nodeId/members'
+    | '/nodes/$nodeId/settings'
+    | '/nodes/$nodeId'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/nodes/$nodeId'
+    | '/nodes/$nodeId/members'
+    | '/nodes/$nodeId/settings'
+    | '/nodes/$nodeId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  NodesNodeIdRoute: typeof NodesNodeIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +119,57 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/nodes/$nodeId': {
+      id: '/nodes/$nodeId'
+      path: '/nodes/$nodeId'
+      fullPath: '/nodes/$nodeId'
+      preLoaderRoute: typeof NodesNodeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nodes/$nodeId/': {
+      id: '/nodes/$nodeId/'
+      path: '/'
+      fullPath: '/nodes/$nodeId/'
+      preLoaderRoute: typeof NodesNodeIdIndexRouteImport
+      parentRoute: typeof NodesNodeIdRoute
+    }
+    '/nodes/$nodeId/members': {
+      id: '/nodes/$nodeId/members'
+      path: '/members'
+      fullPath: '/nodes/$nodeId/members'
+      preLoaderRoute: typeof NodesNodeIdMembersRouteImport
+      parentRoute: typeof NodesNodeIdRoute
+    }
+    '/nodes/$nodeId/settings': {
+      id: '/nodes/$nodeId/settings'
+      path: '/settings'
+      fullPath: '/nodes/$nodeId/settings'
+      preLoaderRoute: typeof NodesNodeIdSettingsRouteImport
+      parentRoute: typeof NodesNodeIdRoute
+    }
   }
 }
+
+interface NodesNodeIdRouteChildren {
+  NodesNodeIdMembersRoute: typeof NodesNodeIdMembersRoute
+  NodesNodeIdSettingsRoute: typeof NodesNodeIdSettingsRoute
+  NodesNodeIdIndexRoute: typeof NodesNodeIdIndexRoute
+}
+
+const NodesNodeIdRouteChildren: NodesNodeIdRouteChildren = {
+  NodesNodeIdMembersRoute: NodesNodeIdMembersRoute,
+  NodesNodeIdSettingsRoute: NodesNodeIdSettingsRoute,
+  NodesNodeIdIndexRoute: NodesNodeIdIndexRoute,
+}
+
+const NodesNodeIdRouteWithChildren = NodesNodeIdRoute._addFileChildren(
+  NodesNodeIdRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  NodesNodeIdRoute: NodesNodeIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

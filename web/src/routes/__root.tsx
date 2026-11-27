@@ -1,8 +1,9 @@
-import { createRootRouteWithContext, Outlet, useRouter } from '@tanstack/react-router';
+import { createRootRouteWithContext, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { logout } from '@/auth/service';
 import { useSession } from '@/auth/useSession';
+import { NodeTree, nodeIdFromPath } from '@/features/tree';
 import type { RouterContext } from '@/router';
 
 export const Route = createRootRouteWithContext<RouterContext>()({
@@ -14,6 +15,8 @@ function RootLayout() {
   const router = useRouter();
   const { authenticated, user } = useSession();
   const [signingOut, setSigningOut] = useState(false);
+  // The route files of the node card are not known here: the current node is read from the path.
+  const currentNodeId = useRouterState({ select: (state) => nodeIdFromPath(state.location.pathname) });
 
   const signOut = async () => {
     if (signingOut) return;
@@ -27,7 +30,7 @@ function RootLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
         <span className="font-semibold">Tenant Backoffice</span>
         {authenticated && (
@@ -44,9 +47,16 @@ function RootLayout() {
           </div>
         )}
       </header>
-      <main className="px-6 py-6">
-        <Outlet />
-      </main>
+      <div className="flex min-h-0 flex-1">
+        {authenticated && (
+          <aside aria-label="Node tree" className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-3">
+            <NodeTree currentNodeId={currentNodeId} />
+          </aside>
+        )}
+        <main className="min-w-0 flex-1 px-6 py-6">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

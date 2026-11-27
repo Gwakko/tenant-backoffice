@@ -7,7 +7,7 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getAccessToken } from '@/auth/session';
-import { baseUrl, createTestApp, problemResponse, resetAuthState, tokenBody } from '@/test/harness';
+import { baseUrl, createTestApp, problemResponse, resetAuthState, testUser, tokenBody } from '@/test/harness';
 
 const server = setupServer();
 
@@ -16,6 +16,8 @@ beforeAll(() => {
 });
 beforeEach(() => {
   resetAuthState();
+  // After sign-in the root layout shows the sidebar tree, which reads /me.
+  server.use(http.get(`${baseUrl}/me`, () => HttpResponse.json({ ...testUser, accessRoots: [] })));
 });
 afterEach(() => {
   server.resetHandlers();
