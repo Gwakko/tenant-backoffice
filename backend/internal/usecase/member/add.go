@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
@@ -174,13 +176,13 @@ func (d Deps) assign(ctx context.Context, tx port.Tx, in AddMemberInput, root bo
 				return Member{}, err
 			}
 		} else if err := d.audit(ctx, tx, port.AuditEntry{
-			Action: "user.created", NodeID: in.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+			Action: "user.created", NodeID: in.NodeID, TargetID: uuid.UUID(userID), ActorID: in.Actor, RequestID: in.RequestID,
 			After: map[string]string{"email": email.String()},
 		}); err != nil {
 			return Member{}, err
 		}
 		err = d.audit(ctx, tx, port.AuditEntry{
-			Action: "member.granted", NodeID: in.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+			Action: "member.granted", NodeID: in.NodeID, TargetID: uuid.UUID(userID), ActorID: in.Actor, RequestID: in.RequestID,
 			After: map[string]string{"user_id": userID.String(), "role": string(target)},
 		})
 		return Member{UserID: userID, Email: email, Role: target, NodeID: in.NodeID, GrantedAt: now}, err
@@ -206,7 +208,7 @@ func (d Deps) replace(ctx context.Context, tx port.Tx, in AddMemberInput, root b
 		return Member{}, err
 	}
 	err := d.audit(ctx, tx, port.AuditEntry{
-		Action: "member.changed", NodeID: in.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+		Action: "member.changed", NodeID: in.NodeID, TargetID: uuid.UUID(cur.UserID), ActorID: in.Actor, RequestID: in.RequestID,
 		Before: map[string]string{"role": string(cur.Role)},
 		After:  map[string]string{"user_id": cur.UserID.String(), "role": string(next.Role)},
 	})

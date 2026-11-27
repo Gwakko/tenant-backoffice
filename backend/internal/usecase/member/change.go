@@ -3,6 +3,8 @@ package member
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
@@ -85,7 +87,7 @@ func (uc *ChangeMemberRole) Execute(ctx context.Context, in ChangeMemberRoleInpu
 		}
 		out.Member = Member{UserID: cur.UserID, Email: cur.Email, Role: next, NodeID: in.NodeID, GrantedAt: a.GrantedAt}
 		return d.audit(ctx, tx, port.AuditEntry{
-			Action: "member.changed", NodeID: in.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+			Action: "member.changed", NodeID: in.NodeID, TargetID: uuid.UUID(in.UserID), ActorID: in.Actor, RequestID: in.RequestID,
 			Before: map[string]string{"role": string(cur.Role)},
 			After:  map[string]string{"user_id": in.UserID.String(), "role": string(next)},
 		})

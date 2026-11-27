@@ -3,6 +3,8 @@ package node
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
@@ -82,7 +84,7 @@ func (uc *DeleteNode) Execute(ctx context.Context, in DeleteNodeInput) (DeleteNo
 			return err
 		}
 		return d.audit(ctx, tx, port.AuditEntry{
-			Action: "node.deleted", NodeID: *n.ParentID, ActorID: in.Actor, RequestID: in.RequestID,
+			Action: "node.deleted", NodeID: *n.ParentID, TargetID: uuid.UUID(n.ID), ActorID: in.Actor, RequestID: in.RequestID,
 			Before: map[string]string{"node_id": n.ID.String(), "name": n.Name.String(), "type": string(n.Type)},
 		})
 	})

@@ -3,6 +3,8 @@ package member
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
@@ -67,7 +69,7 @@ func (uc *RemoveMember) Execute(ctx context.Context, in RemoveMemberInput) error
 			return err
 		}
 		if err := d.audit(ctx, tx, port.AuditEntry{
-			Action: "member.revoked", NodeID: in.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+			Action: "member.revoked", NodeID: in.NodeID, TargetID: uuid.UUID(in.UserID), ActorID: in.Actor, RequestID: in.RequestID,
 			Before: map[string]string{"user_id": in.UserID.String(), "role": string(cur.Role)},
 		}); err != nil {
 			return err

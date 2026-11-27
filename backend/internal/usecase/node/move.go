@@ -3,6 +3,8 @@ package node
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
@@ -113,7 +115,7 @@ func (uc *MoveNode) Execute(ctx context.Context, in MoveNodeInput) (MoveNodeOutp
 		if err := d.Nodes.Move(ctx, tx, plan, len(subtree), d.Clock.Now()); err != nil {
 			return err
 		}
-		if err := d.auditMove(ctx, tx, in, plan); err != nil {
+		if err := d.auditMove(ctx, tx, in, n, plan); err != nil {
 			return err
 		}
 		moved, err := d.Nodes.Get(ctx, tx, n.ID)
@@ -130,18 +132,19 @@ func (uc *MoveNode) Execute(ctx context.Context, in MoveNodeInput) (MoveNodeOutp
 }
 
 // auditMove writes the three records of a move: on the node, on the parent it
-// left and on the parent it joined.
-func (d Deps) auditMove(ctx context.Context, tx port.Tx, in MoveNodeInput, plan dnode.MovePlan) error {
-	old := plan.OldParentID.String()
-	next := plan.NewParentID.String()
-	moved := map[string]string{"node_id": plan.NodeID.String()}
+// left and on the parent it joined. The old parent's record does not name the
+// new place (its branch must not learn the id of a node it cannot see), and
+// the new parent's record does not name the old one (EC-98).
+func (d Deps) auditMove(ctx context.Context, tx port.Tx, in MoveNodeInput, n dnode.Node, plan dnode.MovePlan) error {
+	child := map[string]string{"node_id": plan.NodeID.String(), "name": n.Name.String()}
+	target := uuid.UUID(plan.NodeID)
 	entries := []port.AuditEntry{
-		{Action: "node.moved", NodeID: plan.NodeID, Before: map[string]string{"parent_id": old}, After: map[string]string{"parent_id": next}},
-		{Action: "node.child_moved_out", NodeID: *plan.OldParentID, Before: moved},
-		{Action: "node.child_moved_in", NodeID: plan.NewParentID, After: moved},
+		{Action: "node.moved", NodeID: plan.NodeID, Before: map[string]string{"parent_id": plan.OldParentID.String()}, After: map[string]string{"parent_id": plan.NewParentID.String()}},
+		{Action: "node.child_moved_out", NodeID: *plan.OldParentID, Before: child},
+		{Action: "node.child_moved_in", NodeID: plan.NewParentID, After: child},
 	}
 	for _, e := range entries {
-		e.ActorID, e.RequestID = in.Actor, in.RequestID
+		e.ActorID, e.RequestID, e.TargetID = in.Actor, in.RequestID, target
 		if err := d.audit(ctx, tx, e); err != nil {
 			return err
 		}

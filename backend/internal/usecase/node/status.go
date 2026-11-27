@@ -3,6 +3,8 @@ package node
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
@@ -77,7 +79,7 @@ func setStatus(ctx context.Context, d Deps, in SetStatusInput, active bool) (Set
 				return err
 			}
 			if err := d.audit(ctx, tx, port.AuditEntry{
-				Action: action, NodeID: n.ID, ActorID: in.Actor, RequestID: in.RequestID,
+				Action: action, NodeID: n.ID, TargetID: uuid.UUID(n.ID), ActorID: in.Actor, RequestID: in.RequestID,
 				Before: map[string]string{"status": string(n.Status)},
 				After:  map[string]string{"status": string(next.Status)},
 			}); err != nil {

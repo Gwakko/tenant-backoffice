@@ -3,6 +3,8 @@ package node
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
@@ -80,7 +82,7 @@ func (uc *CreateNode) Execute(ctx context.Context, in CreateNodeInput) (CreateNo
 			return err
 		}
 		if err := d.audit(ctx, tx, port.AuditEntry{
-			Action: "node.created", NodeID: n.ID, ActorID: in.Actor, RequestID: in.RequestID,
+			Action: "node.created", NodeID: n.ID, TargetID: uuid.UUID(n.ID), ActorID: in.Actor, RequestID: in.RequestID,
 			After: map[string]string{"type": string(n.Type), "name": n.Name.String(), "parent_id": parent.ID.String()},
 		}); err != nil {
 			return err

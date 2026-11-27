@@ -3,6 +3,8 @@ package node
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/user"
@@ -61,7 +63,7 @@ func (uc *RenameNode) Execute(ctx context.Context, in RenameNodeInput) (RenameNo
 				return err
 			}
 			if err := d.audit(ctx, tx, port.AuditEntry{
-				Action: "node.renamed", NodeID: n.ID, ActorID: in.Actor, RequestID: in.RequestID,
+				Action: "node.renamed", NodeID: n.ID, TargetID: uuid.UUID(n.ID), ActorID: in.Actor, RequestID: in.RequestID,
 				Before: map[string]string{"name": n.Name.String()},
 				After:  map[string]string{"name": renamed.Name.String()},
 			}); err != nil {

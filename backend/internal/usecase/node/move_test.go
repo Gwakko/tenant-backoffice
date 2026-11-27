@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -81,6 +82,24 @@ func TestMoveRewritesSubtreeUnderLockAndAudits(t *testing.T) {
 	assert.Equal(t, w.id("A1"), w.audit.entries[0].NodeID)
 	assert.Equal(t, w.id("A"), w.audit.entries[1].NodeID)
 	assert.Equal(t, w.id("B"), w.audit.entries[2].NodeID)
+	moved, out2, in2 := w.audit.entries[0], w.audit.entries[1], w.audit.entries[2]
+	assert.Equal(t, map[string]string{"parent_id": w.id("A").String()}, moved.Before)
+	assert.Equal(t, map[string]string{"parent_id": w.id("B").String()}, moved.After)
+	// The old parent's branch learns the child and its name, never the new place.
+	assert.Equal(t, map[string]string{"node_id": w.id("A1").String(), "name": "A1"}, out2.Before)
+	assert.Empty(t, out2.After)
+	assert.Equal(t, map[string]string{"node_id": w.id("A1").String(), "name": "A1"}, in2.After)
+	assert.Empty(t, in2.Before)
+	for _, e := range w.audit.entries {
+		assert.Equal(t, uuid.UUID(w.id("A1")), e.TargetID)
+		assert.Equal(t, w.actors["owner"], e.ActorID)
+		assert.NotContains(t, e.Before, "new_parent_id")
+	}
+	assert.NotContains(t, out2.Before, "parent_id")
+	assert.NotContains(t, out2.After, "parent_id")
+	for _, v := range out2.Before {
+		assert.NotEqual(t, w.id("B").String(), v)
+	}
 }
 
 func TestMoveRefusals(t *testing.T) {
