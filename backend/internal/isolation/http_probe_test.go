@@ -130,6 +130,7 @@ func TestHTTPIDEnumeration(t *testing.T) {
 	requireNoLogErrors(t, h.s)
 }
 
+// Test-ID: T-ISO-28
 // The headers and CORS of an answer must not tell a foreign node from a
 // missing one: no CORS header on either (the API is same-origin behind the
 // proxy), the security headers on both, and HEAD, OPTIONS and a method the
@@ -192,6 +193,7 @@ func TestHTTPForeignAnswerHeadersAndMethods(t *testing.T) {
 	h.requireUnchanged(before, "methods changed data")
 }
 
+// Test-ID: T-ISO-29
 // A foreign id in the body or the query is the answer of a missing id: the
 // destination of a transfer, the new parent of a move, ids in unknown fields
 // that are not part of the contract, and the filters of the lists. Nothing

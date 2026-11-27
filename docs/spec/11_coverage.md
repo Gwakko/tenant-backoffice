@@ -83,13 +83,13 @@ Go-программа (только стандартная библиотека)
 | EC-45 | T-U-20, T-U-40, T-I-60 | M2.3, M2.5 |
 | EC-46 | T-ISO-01 | M4.6 |
 | EC-47 | T-ISO-02 | M4.6 |
-| EC-48 | T-ISO-03 | M4.6 |
-| EC-49 | T-ISO-04, T-I-60 | M4.6 |
-| EC-50 | T-ISO-05, T-ISO-25, T-I-69, T-I-74 | M4.6 |
+| EC-48 | T-ISO-03, T-ISO-29 | M4.6 |
+| EC-49 | T-ISO-04, T-I-60, T-ISO-29 | M4.6 |
+| EC-50 | T-ISO-05, T-ISO-25, T-I-69, T-I-74, T-ISO-29 | M4.6 |
 | EC-51 | T-ISO-06 | M4.6 |
 | EC-52 | T-ISO-07, T-ISO-25, T-I-81, T-A-58, T-A-60 | M4.6 |
 | EC-53 | T-ISO-08, T-ISO-25, T-A-58, T-A-57 | M4.6 |
-| EC-54 | T-ISO-09, T-U-40, T-U-66, T-A-43, T-A-58 | M2.3, M4.6 |
+| EC-54 | T-ISO-09, T-U-40, T-U-66, T-A-43, T-A-58, T-ISO-28 | M2.3, M4.6 |
 | EC-55 | T-ISO-10 | M4.6 |
 | EC-56 | T-ISO-11, T-ISO-23 | M2.3, M2.7 |
 | EC-57 | T-ISO-12, T-ISO-24 | M2.1, M2.7 |

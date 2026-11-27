@@ -211,3 +211,5 @@ config <- app, cmd
 | `E2E_BASE_URL` | только Playwright | локально `http://web`, в CI `http://127.0.0.1:8088` |
 
 Make-цели (минимум): `up`, `down`, `logs`, `migrate`, `seed`, `gen`, `gen-check`, `lint`, `lint-go`, `lint-web`, `typecheck`, `test-unit`, `test-int`, `test-iso`, `test-api`, `test-web`, `migrate-roundtrip`, `ec-check`, `ci`, `ci-inner`, `e2e`, `e2e-inner`. Семантика `ci`/`ci-inner` — `08_testing.md` §5.
+
+Примечание M5.1 к §3.3: добавлены `@eslint/js` 10.0.1, `globals` 17.14.0, `@types/react` 19.3.3, `@types/react-dom` 19.3.0; для `openapi-typescript` (peer TypeScript ^5.x) нужен `overrides` на `typescript`; образ nginx `nginxinc/nginx-unprivileged:1.29-alpine` (порт 8080).

@@ -119,7 +119,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-I-15 | `member_concurrency_test.go TestOwnersRemoveEachOther` | | EC-36 |
 | T-I-16 | `authz_test.go TestRevokeDuringTransaction` | | EC-39 |
 | T-I-17 | `member_test.go TestDuplicateAssignmentNoop` | | EC-40 |
-| T-I-18 | `filters_test.go TestFiltersAreParameterized` | | EC-64 |
+| T-I-18 | `adapter/postgres/filters_test.go TestFiltersAreParameterized` | | EC-64 |
 | T-I-19 | `idempotency_test.go TestConcurrentSameKey` | | EC-67 |
 | T-I-20 | `idempotency_test.go TestKeyScopedPerUser` | | EC-68 |
 | T-I-21 | `idempotency_test.go TestFailedAttemptNotStored` | | EC-71 |
@@ -175,29 +175,29 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 
 ### 3.3 Изоляция тенантов (T-ISO) — главный критерий
 
-`backend/internal/isolation/`, фабрика `World` (§2). T-ISO-01…04, 09, 10, 16…19 реализованы на уровне use case с настоящими `TxRunner`, `Checker` и репозиториями (M2.7); HTTP-вариант (`httptest` + реальный `app.BuildAPI`) добавит M4.6; T-ISO-05…08 появятся с M3 и M4. T-ISO-11…15 и 20…22 — на уровне репозиториев и пула.
+`backend/internal/isolation/`, фабрика `World` (§2). Все T-ISO-01…10 и 16…19 реализованы на двух уровнях: на уровне use case с настоящими `TxRunner`, `Checker` и репозиториями (M2.7) и через HTTP (`httptest` + `apitest.NewStack`, M4.6; файлы `isolation/http_*_test.go`). Ответ про чужой объект сравнивается с ответом про несуществующий по статусу, всем заголовкам (кроме `X-Request-Id`, `Date`) и телу без `requestId`; T-ISO-05…08 реализованы через HTTP. T-ISO-11…15 и 20…22 — на уровне репозиториев и пула.
 
 | ID | Имя | Проверяет | EC |
 |---|---|---|---|
-| T-ISO-01 | `nodes_test.go TestGetForeignNodeIs404` (тело сравнивается с 404 случайного UUID) | | EC-46 |
-| T-ISO-02 | `nodes_test.go TestListsExcludeForeignNodes` | | EC-47 |
-| T-ISO-03 | `nodes_test.go TestMutateForeignNode` (табличный по операциям use cases: rename, deactivate, activate, delete, create child, move; settings PUT/DELETE придут в M3.5) | | EC-48 |
-| T-ISO-04 | `move_test.go TestMoveAcrossBranches` | | EC-49 |
-| T-ISO-05 | `balance_test.go TestForeignBalanceOps` | | EC-50 |
-| T-ISO-06 | `reports_test.go TestForeignReports` | | EC-51 |
-| T-ISO-07 | `audit_test.go TestForeignAudit` | | EC-52 |
-| T-ISO-08 | `operations_test.go TestForeignOperations` | | EC-53 |
-| T-ISO-09 | `enumeration_test.go TestIDEnumeration` (100 id: 50 реальных B, 50 случайных) | | EC-54 |
-| T-ISO-10 | `members_test.go TestForeignMembers` | | EC-34, EC-55 |
+| T-ISO-01 | `nodes_test.go TestGetForeignNodeIs404`, HTTP: `isolation/http_nodes_test.go TestHTTPGetForeignNodeIs404` (тело сравнивается с 404 случайного UUID) | | EC-46 |
+| T-ISO-02 | `nodes_test.go TestListsExcludeForeignNodes`, HTTP: `isolation/http_nodes_test.go TestHTTPListsExcludeForeignNodes` | | EC-47 |
+| T-ISO-03 | `nodes_test.go TestMutateForeignNode`, HTTP: `isolation/http_nodes_test.go TestHTTPMutateForeignNode` (табличный по операциям use cases: rename, deactivate, activate, delete, create child, move; settings PUT/DELETE придут в M3.5) | | EC-48 |
+| T-ISO-04 | `move_test.go TestMoveAcrossBranches`, HTTP: `isolation/http_nodes_test.go TestHTTPMoveAcrossBranches` | | EC-49 |
+| T-ISO-05 | `balance_test.go TestForeignBalanceOps`, HTTP: `isolation/http_ledger_test.go TestHTTPForeignBalanceOps` | | EC-50 |
+| T-ISO-06 | `reports_test.go TestForeignReports`, HTTP: `isolation/http_ledger_test.go TestHTTPForeignReports` | | EC-51 |
+| T-ISO-07 | `audit_test.go TestForeignAudit`, HTTP: `isolation/http_ledger_test.go TestHTTPForeignAudit` | | EC-52 |
+| T-ISO-08 | `operations_test.go TestForeignOperations`, HTTP: `isolation/http_ledger_test.go TestHTTPForeignOperations` | | EC-53 |
+| T-ISO-09 | `enumeration_test.go TestIDEnumeration`, HTTP: `isolation/http_probe_test.go TestHTTPIDEnumeration` (100 id: 50 реальных B, 50 случайных) | | EC-54 |
+| T-ISO-10 | `members_test.go TestForeignMembers`, HTTP: `isolation/http_members_test.go TestHTTPForeignMembers` | | EC-34, EC-55 |
 | T-ISO-11 | `rls_test.go TestRLSWithoutUseCaseChecks`, `adapters_test.go TestRLSThroughRepositories` | сырой SQL и настоящие репозитории (`NodeRepo`, `Checker`) под актором A против B; 42501/23514 -> `not_found` + лог `error` | EC-56 |
 | T-ISO-12 | `rls_test.go TestNoActorSeesNothing` | | EC-57 |
 | T-ISO-13 | `adapters_test.go TestPoolDoesNotLeakActor` (`pgxpool` MaxConns=1, настоящий `TxRunner`) | | EC-58 |
 | T-ISO-14 | `adapters_test.go TestErrorAndPanicResetActor` | ошибка, panic, отмена контекста, ошибка оператора | EC-59 |
 | T-ISO-15 | `rls_test.go TestRolesAndPoliciesConfigured` (запросы к `pg_roles`, `pg_class`, `pg_policies`) | | EC-60 |
-| T-ISO-16 | `members_test.go TestMultiBranchUserSeenFromA` | | EC-61 |
-| T-ISO-17 | `pagination_test.go TestCursorBoundToScope` | курсоры узлов и участников несут только позицию сортировки: область решается заново на каждой странице (Checker и RLS), чужой курсор не открывает чужих данных; строгий `400 invalid_cursor` относится к спискам операций и аудита (M4) | EC-62 |
-| T-ISO-18 | `move_test.go TestCrossBranchMoveByRootOwner` | | EC-63 |
-| T-ISO-19 | `nodes_test.go TestDescendantRoleDoesNotSeeAncestor` | включая операции с участниками | EC-30 |
+| T-ISO-16 | `members_test.go TestMultiBranchUserSeenFromA`, HTTP: `isolation/http_members_test.go TestHTTPMultiBranchUserSeenFromA` | | EC-61 |
+| T-ISO-17 | `pagination_test.go TestCursorBoundToScope`, HTTP: `isolation/http_members_test.go TestHTTPCursorBoundToScope` | на уровне use case курсоры узлов и участников несут только позицию (область решается заново на каждой странице); по HTTP курсор подписан и привязан к виду списка, узлу и фильтрам (не к читателю): другой список, узел или фильтр даёт `400 invalid_cursor`, тот же список читателем без доступа 404 как у несуществующего узла; курсор операций и аудита привязан ещё к читателю и области | EC-62 |
+| T-ISO-18 | `move_test.go TestCrossBranchMoveByRootOwner`, HTTP: `isolation/http_nodes_test.go TestHTTPCrossBranchMoveByRootOwner` | | EC-63 |
+| T-ISO-19 | `nodes_test.go TestDescendantRoleDoesNotSeeAncestor`, HTTP: `isolation/http_nodes_test.go TestHTTPDescendantRoleDoesNotSeeAncestor` | включая операции с участниками | EC-30 |
 | T-ISO-20 | `rls_writes_test.go TestNodeWritesCannotEscapeBranch`: прямой `UPDATE nodes SET path` в чужую ветку и на путь предка выше корня доступа (42501), смена `parent_id` на узел чужой ветки (23514 или 42501), `DELETE` узлов чужой ветки (0 строк); данные не меняются. Примечание: `WITH CHECK` политики `nodes_update` совпадает с `USING` политики SELECT, а PostgreSQL применяет SELECT-политику и к новой строке UPDATE, поэтому ослабление одного `WITH CHECK` не наблюдаемо (эквивалентная мутация); тест фиксирует поведение в целом | | EC-144 |
 | T-ISO-21 | `rls_writes_test.go TestUserPasswordWritePath`: прямой `UPDATE users SET password_hash` под `tb_app` даёт 42501; `UPDATE` разрешён только на `status`, `token_version`; `tb_set_own_password` меняет хеш только актора и не трогает других (в том числе видимых), без актора ничего не меняет; `SELECT *` по `users` падает; `INSERT` пользователя с начальным хешем работает | | EC-145 |
 | T-ISO-22 | `rls_writes_test.go TestAuthByIDHasNoPasswordHash`: у `tb_auth_user_by_id` нет колонки `password_hash` (`id, status, token_version`), у `tb_auth_user_by_email` она есть | | EC-146 |
@@ -206,6 +206,8 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-ISO-25 | `ledger_rls_test.go TestLedgerTablesCrossBranch` | ветка A против B на `node_settings`, `balances`, `operations`, `idempotency_keys`, `audit_log`: SELECT, UPDATE, DELETE, INSERT с чужим `node_id`, подмена автора, чужой контрагент | EC-50, EC-52, EC-53, EC-150, EC-151 |
 | T-ISO-26 | `ledger_rls_test.go TestIdempotencyKeyScope` | ключ принадлежит пользователю: один текст у двух веток независим, чужой не виден, ключ неизменяем, параллельный дубль ждёт и получает конфликт | EC-67, EC-68 |
 | T-ISO-27 | `ledger_rls_test.go TestSettingsChainFunction` | `tb_settings_chain`: пусто для чужого, отсутствующего и предка выше корня; id предка выше корня доступа = NULL | EC-143 |
+| T-ISO-28 | `isolation/http_probe_test.go TestHTTPForeignAnswerHeadersAndMethods` | заголовки безопасности, отсутствие CORS, HEAD, OPTIONS и другие методы на чужом и несуществующем узле неотличимы | EC-54 |
+| T-ISO-29 | `isolation/http_probe_test.go TestHTTPForeignIDInRequest` | чужой id в теле и фильтрах (`toNodeId`, `fromNodeId`, `newParentId`, `nodeId`, `actorId`, субъект смены роли) даёт тот же ответ, что и несуществующий | EC-48, EC-49, EC-50 |
 
 ### 3.4 API (T-A)
 
@@ -269,7 +271,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-A-63 | `apitest/report_api_test.go TestAPIReportChildren` | разбивка по детям по контракту |  |
 | T-A-64 | `apitest/report_api_test.go TestAPIReportInvalidPeriod` | невалидный период, пояс, гранулярность | EC-90 |
 
-Сценарные без EC: T-A-30 `TestHappyPathFullScenario` (логин -> создать дерево -> роли -> начисление/перевод -> отчёт -> аудит).
+Сценарные без EC: T-A-30 `apitest/scenario_test.go TestAPIHappyPathFullScenario` (логин -> создать дерево -> роли -> начисление/перевод -> отчёт -> аудит -> выход; в конце баланс равен сумме операций, аудит в нужном порядке).
 
 ### 3.5 Web (T-W)
 
@@ -295,7 +297,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-ARCH-01 | `archtest/layers_test.go TestLayerImports` | разбор импортов `go/parser` всех пакетов: `domain` импортирует только пакеты из белого списка `domainAllowed` (любой другой импорт, включая прочую stdlib, это нарушение с именем пакета и файла): `errors`, `fmt`, `strings`, `strconv`, `unicode`, `unicode/utf8`, `time`, `sort`, `slices`, `maps`, `math`, `cmp`, `github.com/google/uuid`, `golang.org/x/text/cases`, `golang.org/x/text/unicode/norm`, подпакеты `internal/domain`; расширение: добавить пакет в `domainAllowed` и в правило `domain` в `.golangci.yml` с обоснованием; `usecase` не импортирует `adapter`, `app`, `pgx`, `net/http`; `adapter/X` не импортирует `adapter/Y` (кроме `httpapi -> httpapi/gen`); только `app` и `cmd` импортируют `adapter`; `cmd` импортирует только `app`, `config`. Самотест на фикстурах `archtest/testdata` | EC-130 |
 | T-ARCH-02 | `.golangci.yml` `forbidigo` (`os.Getenv`, `os.LookupEnv`, `fmt.Print*`, `log.Print*`) с исключением `internal/config`, `cmd` (только `os.Exit`); `depguard` (`allow`-список `domain`, зеркало `domainAllowed`) дублирует часть T-ARCH-01 | EC-131 |
 | T-ARCH-03 | `archtest/tags_test.go TestNoTagsInDomainAndUseCase` | структуры в `domain/**`, `usecase/**` без тегов полей | EC-132 |
-| T-ARCH-04 | `make lint-web`: eslint (`no-explicit-any`) + `grep -rn "eslint-disable" web/src` пусто + `tsc --noEmit` | EC-137 |
+| T-ARCH-04 | `make lint-web` (запрет `eslint-disable` в исходниках web, eslint с `no-explicit-any`, правилами слоёв и `noInlineConfig`), `make typecheck` (`tsc --noEmit`), самотест `web/eslint/arch.test.ts` `[T-ARCH-04]` (фикстуры `web/eslint/fixtures/arch`) | EC-137 |
 | T-ARCH-05 | `archtest/float_test.go TestNoFloatInDomainAndUseCase` | нет `float32/float64` в `domain`, `usecase` | EC-130 |
 
 Набор линтеров golangci-lint v2 (проверить имена командой `golangci-lint linters` в M1.4): `errcheck, govet, staticcheck, unused, ineffassign, revive, gosec, bodyclose, sqlclosecheck, rowserrcheck, errorlint, noctx, contextcheck, exhaustive, forbidigo, depguard, gocritic, misspell, nolintlint, usestdlibvars`; форматтеры `gofumpt, goimports`. `//nolint` только с указанием линтера и причины (`nolintlint` `require-explanation`, `require-specific`).
@@ -318,7 +320,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 |---|---|---|---|
 | T-CI-01 | `cmd/migrate/roundtrip_test.go` (`integration`) + `make migrate-roundtrip` | up -> down-to 0 -> up на новой БД, после down нет объектов (запрос к `pg_class` по схеме `public`, кроме `goose_db_version`), seed после повторного up | EC-126 |
 | T-CI-02 | `cmd/migrate/failing_test.go` с каталогом `testdata/failing/` | версия не изменилась, таблица из первого оператора не создана | EC-127 |
-| T-CI-03 | `make gen-check` + `internal/adapter/httpapi/openapi_test.go` (`TestOpenAPIValid`, `TestEveryEndpointDocumented`, `TestErrorCodeEnum`, `TestErrorResponses`, `TestSecurityOfOperations`, `TestIdempotencyKeyHeader`, `TestMoneyIsStringWithPattern`, `TestFormats`, `TestPagination`, `TestDomainEnumsMatch`) | валидность OpenAPI 3.0.3, все эндпоинты `03` есть и нет лишних, коды ошибок и статусы по таблице `03` §2.3, публично только login, healthz, readyz (refresh: cookie и CSRF), деньги только строки с pattern, enum и границы совпадают с доменом | EC-128 |
+| T-CI-03 | `make gen-check` (`gen-check-go` и `gen-check-web`: `api.gen.go` и `schema.d.ts`) + `internal/adapter/httpapi/openapi_test.go` (`TestOpenAPIValid`, `TestEveryEndpointDocumented`, `TestErrorCodeEnum`, `TestErrorResponses`, `TestSecurityOfOperations`, `TestIdempotencyKeyHeader`, `TestMoneyIsStringWithPattern`, `TestFormats`, `TestPagination`, `TestDomainEnumsMatch`) | валидность OpenAPI 3.0.3, все эндпоинты `03` есть и нет лишних, коды ошибок и статусы по таблице `03` §2.3, публично только login, healthz, readyz (refresh: cookie и CSRF), деньги только строки с pattern, enum и границы совпадают с доменом | EC-128 |
 | T-CI-04 | `make check-hosts`: `grep -rnE "localhost:[0-9]+|127\.0\.0\.1" backend --include=*_test.go web/e2e web/src` пусто + `testkit` `TestRequiresAdminURL` | EC-129 |
 | T-CI-05 | `tools/eccheck/main_test.go` на фикстурах (EC без T, T без теста, нормальный случай) | EC-133 |
 | T-CI-06 | `internal/testkit/db_test.go TestParallelDatabases` | две БД из шаблона параллельно, данные не пересекаются, удалены после теста | EC-134 |
