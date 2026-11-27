@@ -237,6 +237,32 @@ describe('balance operations', () => {
     expect(sent?.headers.get('Idempotency-Key')).toBeTruthy();
   });
 
+  it('the recipient list loads the next page on "Load more" and keeps the first page', async () => {
+    const state = makeState();
+    const item = (n: number) => ({ id: `00000000-0000-4000-8000-0000000001${String(n).padStart(2, '0')}`, type: 'unit', name: `Unit ${String(n)}`, status: 'active', childrenCount: 0 });
+    server.use(
+      http.get(`${baseUrl}/nodes/:id/children`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        return cursor === null
+          ? HttpResponse.json({ items: [item(1), item(2)], nextCursor: 'page-2' })
+          : HttpResponse.json({ items: [item(3)], nextCursor: null });
+      }),
+      ...readHandlers(state),
+    );
+    renderApp(nodePath);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Transfer' }));
+    expect(await screen.findByRole('button', { name: 'Select Unit 2' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Select Unit 3' })).toBeNull();
+
+    // The tree behind the dialog also lists children, so the button is looked up inside the dialog.
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByRole('button', { name: 'Select Unit 3' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Select Unit 1' })).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: 'Load more' })).toBeNull();
+  });
+
   it('a transfer without a recipient is not sent', async () => {
     const state = makeState();
     server.use(...readHandlers(state));

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useDeferredValue, useState } from 'react';
 
 import { keys } from '@/api/keys';
@@ -9,6 +9,8 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { useApi } from '@/hooks/useApi';
+
+const PAGE_SIZE = 50;
 
 export interface Recipient {
   id: string;
@@ -29,10 +31,14 @@ export function RecipientPicker({ fromNodeId, value, onChange }: Props) {
   const [search, setSearch] = useState('');
   const q = useDeferredValue(search.trim());
   const here = useQuery({ queryKey: keys.node(browseId), queryFn: () => fetchNode(api, browseId) });
-  const list = useQuery({
+  const list = useInfiniteQuery({
     queryKey: keys.children(browseId, { purpose: 'picker', q }),
-    queryFn: () => fetchChildrenPage(api, browseId, { q, limit: 50 }),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      fetchChildrenPage(api, browseId, { q, limit: PAGE_SIZE, ...(pageParam === undefined ? {} : { cursor: pageParam }) }),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+  const items = list.data?.pages.flatMap((page) => page.items) ?? [];
   const upId = here.data ? parentIdOf(here.data) : null;
 
   return (
@@ -73,7 +79,7 @@ export function RecipientPicker({ fromNodeId, value, onChange }: Props) {
       />
       {list.isError && <Alert>{describeProblem(problemOf(list.error))}</Alert>}
       {list.isPending && <p className="text-sm text-slate-600">Loading...</p>}
-      {list.isSuccess && list.data.items.length === 0 && <p className="text-sm text-slate-600">No nodes here.</p>}
+      {list.isSuccess && items.length === 0 && <p className="text-sm text-slate-600">No nodes here.</p>}
       <ul className="max-h-48 divide-y divide-slate-100 overflow-y-auto">
         {browseId !== fromNodeId && here.data && q === '' && (
           <li className="flex items-center justify-between gap-2 py-1">
@@ -91,7 +97,7 @@ export function RecipientPicker({ fromNodeId, value, onChange }: Props) {
             </Button>
           </li>
         )}
-        {list.data?.items.map((item) => (
+        {items.map((item) => (
           <li key={item.id} className="flex items-center justify-between gap-2 py-1">
             <span className="min-w-0 truncate" title={item.name}>
               {item.name}
@@ -123,6 +129,17 @@ export function RecipientPicker({ fromNodeId, value, onChange }: Props) {
           </li>
         ))}
       </ul>
+      {list.hasNextPage && (
+        <Button
+          variant="secondary"
+          busy={list.isFetchingNextPage}
+          onClick={() => {
+            void list.fetchNextPage();
+          }}
+        >
+          Load more
+        </Button>
+      )}
     </fieldset>
   );
 }

@@ -109,7 +109,7 @@ export function AuditPanel({ nodeId, filters, onFiltersChange }: AuditPanelProps
           }}
         />
       )}
-      {list.isSuccess && entries.length === 0 && <EmptyState>No audit entries for these filters.</EmptyState>}
+      {list.isSuccess && entries.length === 0 && <EmptyState>No audit entries for these filters. Entries appear as actions are made in the application; the demo data carries none.</EmptyState>}
       {entries.length > 0 && (
         <Table caption="Audit entries">
           <thead>
@@ -154,31 +154,31 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
       </Td>
       <Td>{auditActionLabels[entry.action]}</Td>
       <Td>
-        <span className="block max-w-48 truncate" title={entry.actorEmail ?? undefined}>
+        <span className="block max-w-32 truncate" title={entry.actorEmail ?? undefined}>
           {entry.actorEmail ?? 'Hidden user'}
         </span>
       </Td>
       <Td>
-        <span className="block max-w-48 truncate" title={entry.nodeName}>
+        <span className="block max-w-32 truncate" title={entry.nodeName}>
           {entry.nodeName}
         </span>
       </Td>
       <Td>
-        <span className="block max-w-48 truncate" title={entry.targetId}>
+        <span className="block max-w-32 truncate" title={entry.targetId}>
           {entry.targetType}: {truncate(entry.targetId, 40)}
         </span>
       </Td>
-      <Td>
+      <Td className="min-w-48">
         {before !== '' && (
           <>
             <p className="text-xs font-medium text-slate-600">Before</p>
-            <pre className="max-w-96 overflow-x-auto whitespace-pre-wrap break-words text-xs">{before}</pre>
+            <pre className="whitespace-pre-wrap text-xs [overflow-wrap:anywhere]">{before}</pre>
           </>
         )}
         {after !== '' && (
           <>
             <p className="text-xs font-medium text-slate-600">After</p>
-            <pre className="max-w-96 overflow-x-auto whitespace-pre-wrap break-words text-xs">{after}</pre>
+            <pre className="whitespace-pre-wrap text-xs [overflow-wrap:anywhere]">{after}</pre>
           </>
         )}
       </Td>
