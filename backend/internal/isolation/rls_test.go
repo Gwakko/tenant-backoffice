@@ -4,6 +4,7 @@ package isolation_test
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"testing"
 
@@ -346,6 +347,12 @@ SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 			"nodes":            {"DELETE", "INSERT", "SELECT", "UPDATE"},
 			"role_assignments": {"DELETE", "INSERT", "SELECT", "UPDATE"},
 			"users":            {"INSERT", "SELECT", "UPDATE"}, // no DELETE grant, so no policy
+			// M3 tables. A command without a grant has no policy either.
+			"node_settings":    {"DELETE", "INSERT", "SELECT", "UPDATE"},
+			"balances":         {"INSERT", "SELECT", "UPDATE"}, // removed only with the node (cascade)
+			"operations":       {"INSERT", "SELECT"},           // append-only
+			"idempotency_keys": {"DELETE", "INSERT", "SELECT"}, // a stored key is immutable
+			"audit_log":        {"INSERT", "SELECT"},           // append-only
 		}
 		for table, cmds := range want {
 			var enabled, forced bool
@@ -364,6 +371,87 @@ SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 			require.NoError(t, err)
 			assert.Equal(t, cmds, got, table)
 		}
+
+		// Every table of the schema is under RLS except the one that holds no
+		// tenant data; a table added later without RLS fails here on purpose.
+		rows, err := db.Owner.Query(ctx, `
+SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relrowsecurity AND c.relname <> 'goose_db_version'
+ ORDER BY c.relname`)
+		require.NoError(t, err)
+		noRLS, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		require.NoError(t, err)
+		assert.Equal(t, []string{"refresh_tokens"}, noRLS, "tables without row level security")
+
+		// No policy may be a blanket "true", whatever the command.
+		rows, err = db.Owner.Query(ctx, `
+SELECT tablename || '.' || policyname FROM pg_policies
+ WHERE schemaname = 'public' AND (lower(coalesce(qual, '')) IN ('true', '(true)') OR lower(coalesce(with_check, '')) IN ('true', '(true)'))
+ ORDER BY 1`)
+		require.NoError(t, err)
+		blanket, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		require.NoError(t, err)
+		assert.Empty(t, blanket, "blanket policies")
+
+		// tb_app holds no maintenance privileges on any table.
+		for _, table := range []string{
+			"nodes", "role_assignments", "users", "refresh_tokens",
+			"node_settings", "balances", "operations", "idempotency_keys", "audit_log",
+		} {
+			for _, p := range []string{"TRUNCATE", "REFERENCES", "TRIGGER"} {
+				var has bool
+				require.NoError(t, db.Owner.QueryRow(ctx, `SELECT has_table_privilege('tb_app', 'public.'||$1, $2)`, table, p).Scan(&has))
+				assert.False(t, has, table+": tb_app must not hold "+p)
+			}
+		}
+
+		// Exact table privileges of the M3 tables.
+		grants := map[string][]string{
+			"node_settings":    {"SELECT", "INSERT", "DELETE"},
+			"balances":         {"SELECT", "INSERT"},
+			"operations":       {"SELECT", "INSERT"},
+			"idempotency_keys": {"SELECT", "INSERT", "DELETE"},
+			"audit_log":        {"SELECT", "INSERT"},
+		}
+		for table, allowed := range grants {
+			for _, p := range []string{"SELECT", "INSERT", "UPDATE", "DELETE"} {
+				var has bool
+				require.NoError(t, db.Owner.QueryRow(ctx, `SELECT has_table_privilege('tb_app', 'public.'||$1, $2)`, table, p).Scan(&has))
+				assert.Equal(t, slices.Contains(allowed, p), has, table+": table privilege "+p)
+			}
+		}
+		for _, c := range []struct {
+			table, column string
+			allowed       bool
+		}{
+			{"balances", "amount", true},
+			{"balances", "version", true},
+			{"balances", "updated_at", true},
+			{"balances", "node_id", false},
+			{"node_settings", "value", true},
+			{"node_settings", "updated_by", true},
+			{"node_settings", "node_id", false},
+			{"node_settings", "key", false},
+		} {
+			var has bool
+			require.NoError(t, db.Owner.QueryRow(ctx, `SELECT has_column_privilege('tb_app', 'public.'||$1, $2, 'UPDATE')`, c.table, c.column).Scan(&has))
+			assert.Equal(t, c.allowed, has, c.table+"."+c.column+": column UPDATE")
+		}
+
+		// Append-only tables carry the immutability triggers, which also stop the
+		// owner: BEFORE UPDATE OR DELETE per row and BEFORE TRUNCATE per statement.
+		for _, table := range []string{"audit_log", "operations"} {
+			var rowTrig, truncTrig int
+			require.NoError(t, db.Owner.QueryRow(ctx, `
+SELECT count(*) FILTER (WHERE t.tgtype & 1 <> 0 AND t.tgtype & 2 <> 0 AND t.tgtype & 8 <> 0 AND t.tgtype & 16 <> 0),
+       count(*) FILTER (WHERE t.tgtype & 1 = 0 AND t.tgtype & 2 <> 0 AND t.tgtype & 32 <> 0)
+  FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+ WHERE t.tgrelid = ('public.' || $1)::regclass AND NOT t.tgisinternal AND t.tgenabled = 'O' AND p.proname = 'tb_raise_immutable'`,
+				table).Scan(&rowTrig, &truncTrig))
+			assert.Equal(t, 1, rowTrig, table+": BEFORE UPDATE OR DELETE row trigger")
+			assert.Equal(t, 1, truncTrig, table+": BEFORE TRUNCATE trigger")
+		}
+
 		var priv bool
 		require.NoError(t, db.Owner.QueryRow(ctx, `SELECT has_table_privilege('tb_app', 'public.users', 'DELETE')`).Scan(&priv))
 		assert.False(t, priv, "tb_app must not delete users")
@@ -402,10 +490,15 @@ SELECT p.proname, r.rolname, coalesce(p.proconfig, '{}'::text[]),
 		// A new SECURITY DEFINER function must be reviewed and added here on purpose.
 		assert.Equal(t, []string{
 			"tb_actor_scopes", "tb_auth_user_by_email", "tb_auth_user_by_id",
-			"tb_node_effective_active", "tb_set_own_password", "tb_user_id_by_email",
+			"tb_node_effective_active", "tb_set_own_password", "tb_settings_chain", "tb_user_id_by_email",
 		}, names)
 
-		for _, f := range []string{"tb_actor_id()"} {
+		// Plain functions: not callable by PUBLIC; the trigger function is not
+		// callable by tb_app either (a trigger needs no EXECUTE at fire time).
+		var trigApp bool
+		require.NoError(t, db.Owner.QueryRow(ctx, `SELECT has_function_privilege('tb_app', 'public.tb_raise_immutable()', 'EXECUTE')`).Scan(&trigApp))
+		assert.False(t, trigApp, "tb_raise_immutable: tb_app must not execute it")
+		for _, f := range []string{"tb_actor_id()", "tb_raise_immutable()"} {
 			var publicExec bool
 			require.NoError(t, db.Owner.QueryRow(ctx, `
 SELECT EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0)

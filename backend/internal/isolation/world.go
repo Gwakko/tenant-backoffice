@@ -4,6 +4,7 @@ package isolation
 
 import (
 	"context"
+	"crypto/sha256"
 	"strings"
 	"testing"
 	"time"
@@ -23,8 +24,15 @@ import (
 // Users: OwnerRoot (owner of the root), AdminA (admin of A), AnalystA (analyst
 // of A1), ViewerA1u1 (viewer of A1u1), AdminB (admin of B), OnlyB (viewer of
 // B1u2), Multi (admin of A1 and viewer of B1), Inactive (admin of A, status
-// inactive), Orphan (no role). Operations and audit entries of both branches
-// join it with the ledger and audit tables (M3).
+// inactive), Orphan (no role).
+//
+// Every branch also owns data of the M3 tables, so that a leak through any of
+// them is visible: balances of every node (units: 1100 and 500), a credit on
+// each of the two units and a transfer between them (the same shape in A and
+// B), settings overrides (the root, A, A1, B, B1), idempotency keys (one key
+// text, KeyShared, is used by AdminA and by AdminB for different operations;
+// KeyOnlyA and KeyOnlyB by one admin each) and audit entries on A1, A1u1, B1,
+// B1u1 and the root.
 type World struct {
 	Root                    uuid.UUID
 	A, A1, A1u1, A1u2       uuid.UUID
@@ -40,6 +48,20 @@ type World struct {
 	PathOf             map[uuid.UUID]string
 	NameOf             map[uuid.UUID]string
 	RoleRows           int
+
+	// Ledger and audit data (written as tb_owner).
+	OpsA, OpsB     []uuid.UUID // operation ids of the branch (credits and transfer legs)
+	CreditA        uuid.UUID   // credit on A1u1, the operation behind AdminA's keys
+	CreditB        uuid.UUID   // credit on B1u1, the operation behind AdminB's keys
+	TransferA      uuid.UUID   // transfer A1u2 -> A1u1
+	TransferB      uuid.UUID   // transfer B1u2 -> B1u1
+	AuditA, AuditB []uuid.UUID // audit entries on nodes of the branch
+	AuditRoot      uuid.UUID   // audit entry on the root (visible to neither branch admin)
+	BalanceOf      map[uuid.UUID]int64
+	SettingsRows   int
+	KeyShared      string
+	KeyOnlyA       string
+	KeyOnlyB       string
 
 	db *testkit.DB
 }
@@ -84,7 +106,116 @@ func NewWorld(ctx context.Context, t *testing.T, db *testkit.DB) *World {
 	w.Grant(ctx, t, w.Multi, w.A1, "admin")
 	w.Grant(ctx, t, w.Multi, w.B1, "viewer")
 	w.Grant(ctx, t, w.Inactive, w.A, "admin")
+	w.seedLedger(ctx, t)
 	return w
+}
+
+// seedLedger writes balances, operations, settings, idempotency keys and audit
+// entries into both branches, as tb_owner.
+func (w *World) seedLedger(ctx context.Context, t *testing.T) {
+	t.Helper()
+	w.BalanceOf = map[uuid.UUID]int64{}
+	for _, n := range w.AllNodes {
+		w.AddBalance(ctx, t, n, 0)
+	}
+	w.BalanceOf[w.A1u1], w.BalanceOf[w.A1u2] = 1100, 500
+	w.BalanceOf[w.B1u1], w.BalanceOf[w.B1u2] = 1100, 500
+	for n, amount := range w.BalanceOf {
+		_, err := w.db.Owner.Exec(ctx, `UPDATE balances SET amount = $2, version = 3 WHERE node_id = $1`, n, amount)
+		require.NoError(t, err)
+	}
+
+	// Credit 1000 on the first unit, credit 600 on the second, then a transfer
+	// of 100 from the second to the first: 1100 and 500, as the balances say.
+	w.CreditA, w.TransferA, w.OpsA = w.seedOperations(ctx, t, w.AdminA, w.A1u1, w.A1u2)
+	w.CreditB, w.TransferB, w.OpsB = w.seedOperations(ctx, t, w.AdminB, w.B1u1, w.B1u2)
+
+	w.AddSetting(ctx, t, w.Root, "display_timezone", `"UTC"`)
+	w.AddSetting(ctx, t, w.A, "operations_enabled", `true`)
+	w.AddSetting(ctx, t, w.A1, "max_operation_amount", `"5000"`)
+	w.AddSetting(ctx, t, w.B, "operations_enabled", `true`)
+	w.AddSetting(ctx, t, w.B1, "max_operation_amount", `"7000"`)
+
+	w.KeyShared, w.KeyOnlyA, w.KeyOnlyB = "shared-key", "only-a-key", "only-b-key"
+	w.AddIdempotencyKey(ctx, t, w.AdminA, w.KeyShared, &w.CreditA, nil)
+	w.AddIdempotencyKey(ctx, t, w.AdminA, w.KeyOnlyA, &w.CreditA, nil)
+	w.AddIdempotencyKey(ctx, t, w.AdminB, w.KeyShared, &w.CreditB, nil)
+	w.AddIdempotencyKey(ctx, t, w.AdminB, w.KeyOnlyB, nil, &w.TransferB)
+
+	w.AuditRoot = w.AddAudit(ctx, t, w.OwnerRoot, w.Root, "node.created")
+	w.AuditA = []uuid.UUID{
+		w.AddAudit(ctx, t, w.AdminA, w.A1, "node.created"),
+		w.AddAudit(ctx, t, w.AdminA, w.A1u1, "node.renamed"),
+	}
+	w.AuditB = []uuid.UUID{
+		w.AddAudit(ctx, t, w.AdminB, w.B1, "node.created"),
+		w.AddAudit(ctx, t, w.AdminB, w.B1u1, "node.renamed"),
+	}
+}
+
+func (w *World) seedOperations(ctx context.Context, t *testing.T, actor, first, second uuid.UUID) (credit, transfer uuid.UUID, ops []uuid.UUID) {
+	t.Helper()
+	transfer = uuid.Must(uuid.NewV7())
+	credit = w.AddOperation(ctx, t, actor, first, "credit", 1000, 1000, nil, nil)
+	c2 := w.AddOperation(ctx, t, actor, second, "credit", 600, 600, nil, nil)
+	out := w.AddOperation(ctx, t, actor, second, "transfer_out", 100, 500, &transfer, &first)
+	in := w.AddOperation(ctx, t, actor, first, "transfer_in", 100, 1100, &transfer, &second)
+	return credit, transfer, []uuid.UUID{credit, c2, out, in}
+}
+
+// AddBalance inserts the balance row of a node.
+func (w *World) AddBalance(ctx context.Context, t *testing.T, node uuid.UUID, amount int64) {
+	t.Helper()
+	_, err := w.db.Owner.Exec(ctx,
+		`INSERT INTO balances (node_id, amount, version, updated_at) VALUES ($1, $2, 0, $3)`, node, amount, time.Now().UTC())
+	require.NoError(t, err)
+	w.BalanceOf[node] = amount
+}
+
+// AddOperation inserts a ledger row and returns its id.
+func (w *World) AddOperation(ctx context.Context, t *testing.T, actor, node uuid.UUID, kind string, amount, after int64, transfer, counterparty *uuid.UUID) uuid.UUID {
+	t.Helper()
+	id := uuid.Must(uuid.NewV7())
+	_, err := w.db.Owner.Exec(ctx,
+		`INSERT INTO operations (id, node_id, kind, amount, balance_after, transfer_id, counterparty_node_id, actor_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, node, kind, amount, after, transfer, counterparty, actor, time.Now().UTC())
+	require.NoError(t, err)
+	return id
+}
+
+// AddSetting inserts a settings override; value is JSON text.
+func (w *World) AddSetting(ctx context.Context, t *testing.T, node uuid.UUID, key, value string) {
+	t.Helper()
+	_, err := w.db.Owner.Exec(ctx,
+		`INSERT INTO node_settings (node_id, key, value, updated_at, updated_by) VALUES ($1, $2, $3::jsonb, $4, $5)`,
+		node, key, value, time.Now().UTC(), w.OwnerRoot)
+	require.NoError(t, err)
+	w.SettingsRows++
+}
+
+// AddIdempotencyKey stores a key of a user for an operation or a transfer.
+func (w *World) AddIdempotencyKey(ctx context.Context, t *testing.T, user uuid.UUID, key string, operation, transfer *uuid.UUID) {
+	t.Helper()
+	now := time.Now().UTC()
+	hash := sha256.Sum256([]byte(user.String() + key))
+	_, err := w.db.Owner.Exec(ctx,
+		`INSERT INTO idempotency_keys (user_id, key, request_hash, operation_id, transfer_id, created_at, expires_at)
+		 VALUES ($1, $2, $7, $3, $4, $5, $6)`,
+		user, key, operation, transfer, now, now.Add(24*time.Hour), hash[:])
+	require.NoError(t, err)
+}
+
+// AddAudit appends an audit entry about a node and returns its id.
+func (w *World) AddAudit(ctx context.Context, t *testing.T, actor, node uuid.UUID, action string) uuid.UUID {
+	t.Helper()
+	id := uuid.Must(uuid.NewV7())
+	_, err := w.db.Owner.Exec(ctx,
+		`INSERT INTO audit_log (id, occurred_at, actor_id, node_id, action, target_type, target_id, before, after, request_id)
+		 VALUES ($1, $2, $3, $4, $5, 'node', $4, NULL, '{"name":"x"}'::jsonb, 'req-seed')`,
+		id, time.Now().UTC(), actor, node, action)
+	require.NoError(t, err)
+	return id
 }
 
 // AddNode inserts a node under parent (nil for a root) and returns its id.

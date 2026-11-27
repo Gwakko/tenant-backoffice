@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -221,4 +222,71 @@ func TestTreeConstraintsViaRepo(t *testing.T) {
 		require.NoError(t, w.repo.Move(ctx, tx, plan, 1, now))
 	})
 	assert.Empty(t, w.violations())
+}
+
+// Test-ID: T-I-45
+//
+// The balance is never negative, whoever writes it: a direct UPDATE or INSERT
+// under tb_app, and even the owner, fails with check_violation; the stored
+// amount stays. The ledger columns have their own checks.
+func TestNegativeBalanceRejected(t *testing.T) {
+	ctx := context.Background()
+	w := newWorld(t)
+	admin := uuid.UUID(w.users["adminA"])
+	unit, other := uuid.UUID(w.nodes["A1u1"].ID), uuid.UUID(w.nodes["A1u2"].ID)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	_, err := w.db.Owner.Exec(ctx, `INSERT INTO balances (node_id, amount, version, updated_at) VALUES ($1, 100, 1, $2)`, unit, now)
+	require.NoError(t, err)
+	amount := func() int64 {
+		var a int64
+		require.NoError(t, w.db.Owner.QueryRow(ctx, `SELECT amount FROM balances WHERE node_id = $1`, unit).Scan(&a))
+		return a
+	}
+
+	const checkViolation = "23514"
+	t.Run("update to a negative amount under tb_app", func(t *testing.T) {
+		appTx(ctx, t, w, admin, func(tx pgx.Tx) {
+			_, err := tx.Exec(ctx, `UPDATE balances SET amount = -1 WHERE node_id = $1`, unit)
+			require.Error(t, err)
+			assert.Equal(t, checkViolation, sqlState(err), "got: %v", err)
+		})
+	})
+	t.Run("update to zero and to the maximum is fine", func(t *testing.T) {
+		appTx(ctx, t, w, admin, func(tx pgx.Tx) {
+			for _, v := range []int64{0, 9223372036854775807} {
+				tag, err := tx.Exec(ctx, `UPDATE balances SET amount = $1 WHERE node_id = $2`, v, unit)
+				require.NoError(t, err)
+				assert.EqualValues(t, 1, tag.RowsAffected())
+			}
+		})
+	})
+	t.Run("insert of a negative balance under tb_app", func(t *testing.T) {
+		appTx(ctx, t, w, admin, func(tx pgx.Tx) {
+			_, err := tx.Exec(ctx, `INSERT INTO balances (node_id, amount, updated_at) VALUES ($1, -5, $2)`, other, now)
+			require.Error(t, err)
+			assert.Equal(t, checkViolation, sqlState(err), "got: %v", err)
+		})
+	})
+	t.Run("the owner is held to the same check", func(t *testing.T) {
+		_, err := w.db.Owner.Exec(ctx, `UPDATE balances SET amount = -1 WHERE node_id = $1`, unit)
+		require.Error(t, err)
+		assert.Equal(t, checkViolation, sqlState(err), "got: %v", err)
+	})
+	t.Run("ledger rows carry their own checks", func(t *testing.T) {
+		cases := map[string]string{
+			"balance_after below zero": `INSERT INTO operations (id, node_id, kind, amount, balance_after, actor_id, created_at) VALUES ($1, $2, 'debit', 1, -1, $3, $4)`,
+			"zero amount":              `INSERT INTO operations (id, node_id, kind, amount, balance_after, actor_id, created_at) VALUES ($1, $2, 'credit', 0, 0, $3, $4)`,
+			"negative amount":          `INSERT INTO operations (id, node_id, kind, amount, balance_after, actor_id, created_at) VALUES ($1, $2, 'credit', -5, 0, $3, $4)`,
+			"unknown kind":             `INSERT INTO operations (id, node_id, kind, amount, balance_after, actor_id, created_at) VALUES ($1, $2, 'refund', 1, 1, $3, $4)`,
+			"transfer kind without id": `INSERT INTO operations (id, node_id, kind, amount, balance_after, actor_id, created_at) VALUES ($1, $2, 'transfer_in', 1, 1, $3, $4)`,
+		}
+		for name, stmt := range cases {
+			appTx(ctx, t, w, admin, func(tx pgx.Tx) {
+				_, err := tx.Exec(ctx, stmt, uuid.Must(uuid.NewV7()), unit, admin, now)
+				require.Error(t, err, name)
+				assert.Equal(t, checkViolation, sqlState(err), "%s: %v", name, err)
+			})
+		}
+	})
+	assert.EqualValues(t, 100, amount(), "the stored balance must not change")
 }
