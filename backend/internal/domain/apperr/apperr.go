@@ -39,6 +39,19 @@ const (
 	UserInactive  Code = "user_inactive"
 )
 
+// Codes used by the money, balance, settings and audit domains.
+const (
+	InvalidAmount        Code = "invalid_amount"
+	AmountMustBePositive Code = "amount_must_be_positive"
+	BalanceOverflow      Code = "balance_overflow"
+	InsufficientFunds    Code = "insufficient_funds"
+	AmountExceedsLimit   Code = "amount_exceeds_limit"
+	OperationsDisabled   Code = "operations_disabled"
+	SameNode             Code = "same_node"
+	UnknownSetting       Code = "unknown_setting"
+	InvalidSettingValue  Code = "invalid_setting_value"
+)
+
 // Codes shared by every use case: absent or hidden objects, missing rights and
 // an unavailable store.
 const (
