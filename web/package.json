@@ -1,6 +1,7 @@
 {
   "name": "tenant-backoffice-web",
   "private": true,
+  "license": "MIT",
   "version": "0.0.0",
   "type": "module",
   "engines": {
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
     "@tailwindcss/vite": "4.3.5",
     "@tanstack/router-plugin": "1.169.0",
     "@testing-library/react": "16.3.3",

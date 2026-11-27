@@ -5,8 +5,10 @@
 // If the user changes the request between sends, it is a different attempt and gets a new key,
 // because the server refuses a key that is reused with another body (422 idempotency_key_reused).
 
+import { randomUuid } from './uuid';
+
 export function newIdempotencyKey(): string {
-  return crypto.randomUUID();
+  return randomUuid();
 }
 
 export interface AttemptKey {

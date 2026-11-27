@@ -90,8 +90,14 @@ services:
 
   playwright:
     profiles: ["e2e"]
+    # The image tag and the @playwright/test version in web/package.json must stay equal.
     image: mcr.microsoft.com/playwright:v1.65.1-noble
     working_dir: /workspace/web
+    init: true
+    ipc: host
+    depends_on:
+      web:
+        condition: service_healthy
     environment:
       E2E_BASE_URL: ${E2E_BASE_URL:-http://web:8080}
     volumes:

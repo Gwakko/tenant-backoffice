@@ -1,5 +1,7 @@
 import createClient, { type Client, type Middleware } from 'openapi-fetch';
 
+import { randomUuid } from '@/lib/uuid';
+
 import { apiBaseUrl } from './config';
 import type { components, paths } from './schema';
 
@@ -60,7 +62,7 @@ async function isRefreshableUnauthorized(response: Response): Promise<boolean> {
 function prepareRequest(request: Request, schemaPath: string): Request {
   const prepared = isAuthPath(schemaPath) ? new Request(request, { credentials: 'include' }) : request;
   if (needsCsrfHeader(schemaPath)) prepared.headers.set(CSRF_HEADER, '1');
-  if (!prepared.headers.has('X-Request-Id')) prepared.headers.set('X-Request-Id', crypto.randomUUID());
+  if (!prepared.headers.has('X-Request-Id')) prepared.headers.set('X-Request-Id', randomUuid());
   return prepared;
 }
 

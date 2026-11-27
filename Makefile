@@ -126,9 +126,29 @@ test-api:
 test-web: $(WEB_STAMP)
 	cd web && $(NPM) npm test
 
-# Nothing to run yet; succeed until the Playwright suite exists (M6).
-e2e e2e-inner:
-	@echo "$@: not implemented yet"
+# Browser suite (T-E, spec 08 section 3.6). The scenarios change data, so a run never touches the
+# development database: it creates the throw-away database $(E2E_DB) in the compose Postgres, migrates
+# and seeds it, starts api and web on it, runs Playwright in the `playwright` container (web reached as
+# http://web:8080 inside the compose network), and removes the containers and the database afterwards,
+# also when the run fails. Reports land in web/playwright-report and web/test-results.
+E2E_DB := tb_e2e
+
+e2e: .env keys $(WEB_STAMP)
+	@set -e; \
+	cleanup() { \
+		docker compose --profile e2e rm -sf playwright web api >/dev/null 2>&1 || true; \
+		$(PSQL) -U postgres -c 'DROP DATABASE IF EXISTS $(E2E_DB) WITH (FORCE)' >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT; \
+	cleanup; \
+	$(MAKE) --no-print-directory TB_DB_NAME=$(E2E_DB) db-bootstrap migrate seed up; \
+	rm -rf web/playwright-report web/test-results; \
+	TB_DB_NAME=$(E2E_DB) docker compose --profile e2e run --rm -T playwright npx playwright test
+
+# On a runner: the stack is already up, Playwright and its browser are installed on the host
+# (npm ci in web/, npx playwright install --with-deps chromium) and E2E_BASE_URL is set.
+e2e-inner:
+	cd web && npx playwright test
 
 lint: lint-go lint-web
 
