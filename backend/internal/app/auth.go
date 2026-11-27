@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/authn"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/config"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/user"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/auth"
 )
 
@@ -23,6 +24,12 @@ func AuthnConfig(cfg config.Config) authn.Config {
 		Argon2KeyLen:    a.Argon2KeyLen,
 		Argon2SaltLen:   a.Argon2SaltLen,
 	}
+}
+
+// PasswordHasher builds the argon2id hasher of the process config (tests use it
+// to store known passwords).
+func PasswordHasher(cfg config.Config) (user.Hasher, error) {
+	return authn.NewHasher(AuthnConfig(cfg))
 }
 
 // AuthConfig maps the process config to the settings of the auth use cases.

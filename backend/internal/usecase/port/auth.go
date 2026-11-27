@@ -75,6 +75,13 @@ type RefreshTokenRepo interface {
 	RevokeAllForUser(ctx context.Context, tx Tx, id user.ID, at time.Time) error
 }
 
+// ProfileRepo reads what the acting user may know about themselves.
+type ProfileRepo interface {
+	// OwnEmail returns the email of the acting user (the transaction runs as
+	// that user; any other id is apperr.NotFound).
+	OwnEmail(ctx context.Context, tx Tx, id user.ID) (user.Email, error)
+}
+
 // AccessToken is an issued access token.
 type AccessToken struct {
 	Token     string

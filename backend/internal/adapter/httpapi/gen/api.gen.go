@@ -3377,11 +3377,11 @@ func (response Login200JSONResponse) VisitLoginResponse(w http.ResponseWriter) e
 	w.Header().Set("Content-Type", "application/json")
 	if response.Headers.SetCookie != nil {
 		{
-			v, err := runtime.StyleParamWithOptions("simple", false, "SetCookie", *response.Headers.SetCookie, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			v, err := runtime.StyleParamWithOptions("simple", false, "Set-Cookie", *response.Headers.SetCookie, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
-				return fmt.Errorf("error styling response header SetCookie: %w", err)
+				return fmt.Errorf("error styling response header Set-Cookie: %w", err)
 			}
-			w.Header().Set("SetCookie", v)
+			w.Header().Set("Set-Cookie", v)
 		}
 	}
 	if response.Headers.XRequestId != nil {
@@ -3601,11 +3601,11 @@ type Logout204Response struct {
 func (response Logout204Response) VisitLogoutResponse(w http.ResponseWriter) error {
 	if response.Headers.SetCookie != nil {
 		{
-			v, err := runtime.StyleParamWithOptions("simple", false, "SetCookie", *response.Headers.SetCookie, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			v, err := runtime.StyleParamWithOptions("simple", false, "Set-Cookie", *response.Headers.SetCookie, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
-				return fmt.Errorf("error styling response header SetCookie: %w", err)
+				return fmt.Errorf("error styling response header Set-Cookie: %w", err)
 			}
-			w.Header().Set("SetCookie", v)
+			w.Header().Set("Set-Cookie", v)
 		}
 	}
 	if response.Headers.XRequestId != nil {
@@ -3970,11 +3970,11 @@ func (response Refresh200JSONResponse) VisitRefreshResponse(w http.ResponseWrite
 	w.Header().Set("Content-Type", "application/json")
 	if response.Headers.SetCookie != nil {
 		{
-			v, err := runtime.StyleParamWithOptions("simple", false, "SetCookie", *response.Headers.SetCookie, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			v, err := runtime.StyleParamWithOptions("simple", false, "Set-Cookie", *response.Headers.SetCookie, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
-				return fmt.Errorf("error styling response header SetCookie: %w", err)
+				return fmt.Errorf("error styling response header Set-Cookie: %w", err)
 			}
-			w.Header().Set("SetCookie", v)
+			w.Header().Set("Set-Cookie", v)
 		}
 	}
 	if response.Headers.XRequestId != nil {

@@ -111,6 +111,23 @@ func (d *DB) URL(tb testing.TB) string {
 	return u
 }
 
+// AppURL returns a connection URL of this database that runs every session as
+// tb_app (the role is set at connection start, so row-level security applies
+// although the credentials are the admin ones). Use it where a component takes
+// a URL, like the application pool of the API.
+func (d *DB) AppURL(tb testing.TB) string {
+	tb.Helper()
+	u := d.URL(tb)
+	parsed, err := url.Parse(u)
+	if err != nil {
+		tb.Fatalf("testkit: %v", err)
+	}
+	q := parsed.Query()
+	q.Set("role", "tb_app")
+	parsed.RawQuery = q.Encode()
+	return parsed.String()
+}
+
 // NewAppPool opens an extra pool as tb_app with at most maxConns connections
 // (a pool of one proves that a connection is reused between transactions). The
 // pool is closed when the test ends.

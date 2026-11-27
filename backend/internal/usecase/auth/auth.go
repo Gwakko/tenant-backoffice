@@ -30,6 +30,7 @@ type Deps struct {
 	Config  Config
 	Tx      port.TxRunner
 	Users   port.AuthUserRepo
+	Profile port.ProfileRepo
 	Refresh port.RefreshTokenRepo
 	Codec   port.RefreshCodec
 	Issuer  port.TokenIssuer

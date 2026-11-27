@@ -74,7 +74,7 @@ paths:
           description: Access token; the refresh token is set as the tb_refresh cookie
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
-            SetCookie: { $ref: '#/components/headers/SetCookie' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookie' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
@@ -112,7 +112,7 @@ paths:
           description: New access token and a new tb_refresh cookie
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
-            SetCookie: { $ref: '#/components/headers/SetCookie' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookie' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
@@ -139,7 +139,7 @@ paths:
           description: Signed out
           headers:
             X-Request-Id: { $ref: '#/components/headers/XRequestId' }
-            SetCookie: { $ref: '#/components/headers/SetCookie' }
+            Set-Cookie: { $ref: '#/components/headers/SetCookie' }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':

@@ -117,6 +117,14 @@ func (s *store) byID(id user.ID) (port.AuthUser, bool, error) {
 	return port.AuthUser{ID: u.id, Status: u.status, TokenVersion: u.tv}, true, nil
 }
 
+func (s *store) OwnEmail(_ context.Context, _ port.Tx, id user.ID) (user.Email, error) {
+	u, ok := s.users[id]
+	if !ok {
+		return "", apperr.NotFoundError("user")
+	}
+	return u.email, nil
+}
+
 func (s *store) PasswordHash(_ context.Context, _ port.Tx, id user.ID) (user.PasswordHash, error) {
 	return s.users[id].hash, nil
 }
@@ -270,7 +278,7 @@ func newWorld(t *testing.T) *world {
 	iss := fakeIssuer{clock}
 	return &world{t: t, store: st, hasher: h, clock: clock, deps: auth.Deps{
 		Config: auth.Config{RefreshTTL: 7 * 24 * time.Hour},
-		Tx:     st, Users: st, Refresh: st, Codec: &fakeCodec{}, Issuer: iss, Verify: iss,
+		Tx:     st, Users: st, Profile: st, Refresh: st, Codec: &fakeCodec{}, Issuer: iss, Verify: iss,
 		Hasher: h, Clock: clock, IDs: fakeIDs{},
 	}}
 }

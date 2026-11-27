@@ -86,6 +86,18 @@ func WithHeader(name, value string) Option {
 	}
 }
 
+// WithCookie sends a cookie (the client has no jar: refresh tests pass the
+// value they took from a Set-Cookie header themselves).
+func WithCookie(name, value string) Option {
+	return func(r *http.Request) {
+		//nolint:gosec // a request cookie: the attributes of a Set-Cookie do not apply
+		r.AddCookie(&http.Cookie{Name: name, Value: value})
+	}
+}
+
+// WithCSRF sets the X-TB-CSRF header of the refresh cookie flow.
+func WithCSRF() Option { return WithHeader(httpapi.CSRFHeader, httpapi.CSRFValue) }
+
 // WithRequestID sets X-Request-Id.
 func WithRequestID(id string) Option { return WithHeader(httpapi.RequestIDHeader, id) }
 
@@ -156,6 +168,16 @@ type Response struct {
 	Status int
 	Header http.Header
 	Body   []byte
+}
+
+// Cookie returns the Set-Cookie of the answer with this name, or nil.
+func (r *Response) Cookie(name string) *http.Cookie {
+	for _, c := range (&http.Response{Header: r.Header}).Cookies() {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
 }
 
 // JSON decodes the body into v.

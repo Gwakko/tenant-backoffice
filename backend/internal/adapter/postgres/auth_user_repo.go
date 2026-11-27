@@ -28,6 +28,8 @@ const (
   FROM users u CROSS JOIN LATERAL tb_auth_user_by_email(u.email) a
  WHERE u.id = $1 AND u.id = tb_actor_id()`
 
+	ownEmail = `SELECT email FROM users WHERE id = $1 AND id = tb_actor_id()`
+
 	callSetOwnHash   = `SELECT tb_set_own_password($1)`
 	incrementVersion = `UPDATE users SET token_version = token_version + 1 WHERE id = $1`
 )
@@ -40,7 +42,10 @@ type AuthUserRepo struct {
 	log  *slog.Logger
 }
 
-var _ port.AuthUserRepo = (*AuthUserRepo)(nil)
+var (
+	_ port.AuthUserRepo = (*AuthUserRepo)(nil)
+	_ port.ProfileRepo  = (*AuthUserRepo)(nil)
+)
 
 // NewAuthUserRepo builds the repository on the application pool.
 func NewAuthUserRepo(pool *pgxpool.Pool, log *slog.Logger) *AuthUserRepo {
@@ -143,4 +148,21 @@ func (r *AuthUserRepo) BumpTokenVersion(ctx context.Context, tx port.Tx, id user
 		return apperr.NotFoundError(resourceUser)
 	}
 	return nil
+}
+
+// OwnEmail implements port.ProfileRepo.
+func (r *AuthUserRepo) OwnEmail(ctx context.Context, tx port.Tx, id user.ID) (user.Email, error) {
+	t, err := unwrap(tx)
+	if err != nil {
+		return "", err
+	}
+	var email string
+	err = t.QueryRow(ctx, ownEmail, uuid.UUID(id)).Scan(&email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", apperr.NotFoundError(resourceUser)
+	}
+	if err != nil {
+		return "", mapError(r.log, "read own email", resourceUser, err)
+	}
+	return user.Email(email), nil
 }

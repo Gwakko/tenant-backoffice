@@ -123,9 +123,11 @@ func (uc *ListChildren) Execute(ctx context.Context, in ListChildrenInput) (List
 			last := kids[len(kids)-1]
 			out.NextCursor = encodeCursor(port.ChildCursor{NameKey: last.Name.Key(), ID: last.ID})
 		}
-		for _, k := range kids {
-			out.Items = append(out.Items, summarize(k))
+		items, err := d.summarizeAll(ctx, tx, kids)
+		if err != nil {
+			return err
 		}
+		out.Items = items
 		return nil
 	})
 	if err != nil {
@@ -226,9 +228,11 @@ func (uc *ListMoveTargets) Execute(ctx context.Context, in ListMoveTargetsInput)
 			last := picked[len(picked)-1]
 			out.NextCursor = encodeCursor(port.ChildCursor{NameKey: last.Name.Key(), ID: last.ID})
 		}
-		for _, c := range picked {
-			out.Items = append(out.Items, summarize(c))
+		items, err := d.summarizeAll(ctx, tx, picked)
+		if err != nil {
+			return err
 		}
+		out.Items = items
 		return nil
 	})
 	if err != nil {

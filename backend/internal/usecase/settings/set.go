@@ -3,6 +3,8 @@ package settings
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
@@ -114,7 +116,7 @@ func (uc *SetSetting) Execute(ctx context.Context, in SetSettingInput) (SetSetti
 				before["value"] = w.Before
 			}
 			if err := d.Audit.Write(ctx, tx, port.AuditEntry{
-				Action: "settings.set", NodeID: in.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+				Action: "settings.set", NodeID: in.NodeID, TargetID: uuid.UUID(in.NodeID), ActorID: in.Actor, RequestID: in.RequestID,
 				Before: before, After: map[string]string{"key": string(key), "value": canonical},
 			}); err != nil {
 				return err

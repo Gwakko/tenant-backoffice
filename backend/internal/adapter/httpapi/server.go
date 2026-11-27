@@ -85,6 +85,7 @@ func NewServer(o Options) (http.Handler, error) {
 		accessLog(o.Log, o.Clock),
 		recoverer(o.Log),
 		routing(mux),
+		capture(o.TrustForwardedFor),
 		limitBody(o.MaxBodyBytes, o.Log),
 		requireJSON(o.Log),
 		authn(o.Authenticator, o.Log),

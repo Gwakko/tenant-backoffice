@@ -3,6 +3,8 @@ package settings
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/role"
 	dset "github.com/Gwakko/tenant-backoffice/backend/internal/domain/settings"
@@ -56,7 +58,7 @@ func (uc *UnsetSetting) Execute(ctx context.Context, in UnsetSettingInput) (Unse
 		}
 		if found {
 			if err := d.Audit.Write(ctx, tx, port.AuditEntry{
-				Action: "settings.unset", NodeID: in.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+				Action: "settings.unset", NodeID: in.NodeID, TargetID: uuid.UUID(in.NodeID), ActorID: in.Actor, RequestID: in.RequestID,
 				Before: map[string]string{"key": string(key), "value": before},
 				After:  map[string]string{"key": string(key)},
 			}); err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/user"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/port"
 )
 
@@ -37,14 +38,17 @@ func validRefreshShape(s string) bool {
 }
 
 // RefreshOutput is the rotated session.
-type RefreshOutput struct{ Session }
+type RefreshOutput struct {
+	Session
+	Email user.Email
+}
 
 // RefreshUseCase is UC-A2.
 type RefreshUseCase struct{ d Deps }
 
 // NewRefreshUseCase builds the use case.
 func NewRefreshUseCase(d Deps) (*RefreshUseCase, error) {
-	if err := d.need(d.Tx != nil && d.Users != nil && d.Refresh != nil && d.Codec != nil &&
+	if err := d.need(d.Tx != nil && d.Users != nil && d.Profile != nil && d.Refresh != nil && d.Codec != nil &&
 		d.Issuer != nil && d.Clock != nil && d.IDs != nil && d.Config.RefreshTTL > 0); err != nil {
 		return nil, err
 	}
@@ -118,10 +122,14 @@ func (uc *RefreshUseCase) Execute(ctx context.Context, in RefreshInput) (Refresh
 		if err != nil {
 			return err
 		}
-		out = RefreshOutput{Session{
+		email, err := uc.d.Profile.OwnEmail(ctx, tx, owner)
+		if err != nil {
+			return err
+		}
+		out = RefreshOutput{Session: Session{
 			AccessToken: at.Token, ExpiresIn: expiresIn, RefreshToken: token,
 			RefreshExpiresAt: row.ExpiresAt, UserID: owner,
-		}}
+		}, Email: email}
 		return nil
 	})
 	if err != nil {

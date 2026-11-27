@@ -51,7 +51,7 @@ keys:
 	test -f keys/cursor.env || echo "TB_CURSOR_KEY=$$(openssl rand -base64 32)" > keys/cursor.env
 
 # Targets below stay stubs (fail loudly) until the milestone that owns them.
-seed test-api lint-web typecheck build:
+seed lint-web typecheck build:
 	@echo "$@: not implemented yet"; exit 1
 
 # Generates Go DTOs and the strict server interface from api/openapi.yaml (oapi-codegen, version pinned
@@ -82,6 +82,11 @@ test-int:
 # Tenant isolation suite (T-ISO): real Postgres, connected as tb_app.
 test-iso:
 	cd backend && $(GO) go test -race -count=1 -tags integration $(GOTESTFLAGS) ./internal/isolation/...
+
+# API suite (T-A): the real API over a real Postgres. One regex without `|` on purpose: GOTESTFLAGS is
+# expanded unquoted by the shell, so every API test is named TestAPI... and one prefix selects them all.
+test-api:
+	cd backend && $(GO) go test -race -count=1 -tags integration -run 'TestAPI' $(GOTESTFLAGS) ./internal/adapter/httpapi/...
 
 # Nothing to run yet; succeed until the web client and Playwright suite exist.
 test-web e2e e2e-inner:
@@ -125,8 +130,8 @@ ci: .env
 ci-inner: ci-go ci-web
 
 # Goal list per spec 08 section 5: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api ec-check.
-# test-api (M4.x) is still a stub; ec-check (M1.7, soft) stays out of ci-go until M6.3 makes it strict; they are added as they land.
-ci-go: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso
+# ec-check (M1.7, soft) stays out of ci-go until M6.3 makes it strict; it is added as it lands.
+ci-go: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api
 
 # Goal list per spec: npm ci typecheck lint-web test-web build. Only test-web exists until the web client (M5.x).
 ci-web: test-web

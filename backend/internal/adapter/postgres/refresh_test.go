@@ -101,7 +101,7 @@ func newAuthWorld(t *testing.T) *authWorld {
 	w.tokens = postgres.NewRefreshTokenRepo(db.App, log)
 	w.deps = auth.Deps{
 		Config: auth.Config{RefreshTTL: 7 * 24 * time.Hour},
-		Tx:     w.runner, Users: w.users, Refresh: w.tokens, Codec: authn.NewRefreshCodec(),
+		Tx:     w.runner, Users: w.users, Profile: w.users, Refresh: w.tokens, Codec: authn.NewRefreshCodec(),
 		Issuer: jwt, Verify: jwt, Hasher: hasher, Clock: clock, IDs: authIDs{}, Log: log,
 	}
 	w.login, err = auth.NewLoginUseCase(w.deps)

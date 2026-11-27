@@ -61,6 +61,8 @@ type reqState struct {
 	route     string
 	actor     user.ActorID
 	hasActor  bool
+	// client is what the handlers need from the raw request (see capture).
+	client ClientInfo
 }
 
 func (s *reqState) routeOrUnmatched() string {

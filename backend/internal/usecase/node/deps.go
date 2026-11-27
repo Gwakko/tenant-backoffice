@@ -54,6 +54,8 @@ type Summary struct {
 	Name            string
 	Status          dnode.Status
 	EffectiveActive bool
+	// ChildrenCount is the number of direct children the actor can see.
+	ChildrenCount int
 }
 
 func summarize(n dnode.Node) Summary {
@@ -64,6 +66,21 @@ var (
 	readTx  = port.TxOptions{ReadOnly: true}
 	writeTx = port.TxOptions{}
 )
+
+// summarizeAll turns nodes into summaries with their child counts, read in tx.
+func (d Deps) summarizeAll(ctx context.Context, tx port.Tx, nodes []dnode.Node) ([]Summary, error) {
+	out := make([]Summary, 0, len(nodes))
+	for _, n := range nodes {
+		s := summarize(n)
+		c, err := d.Nodes.CountChildren(ctx, tx, n.ID)
+		if err != nil {
+			return nil, err
+		}
+		s.ChildrenCount = c
+		out = append(out, s)
+	}
+	return out, nil
+}
 
 // view builds the View of n inside tx.
 func (d Deps) view(ctx context.Context, tx port.Tx, n dnode.Node) (View, error) {
