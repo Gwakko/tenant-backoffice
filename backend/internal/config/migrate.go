@@ -33,3 +33,18 @@ func TestDBAdminURL() (string, bool) {
 	v, ok := os.LookupEnv("TB_TEST_DB_ADMIN_URL")
 	return v, ok && v != ""
 }
+
+// LoadSeed reads the settings of the seed tool: the migrate settings and the
+// password hashing parameters. Unlike Load it needs no HTTP settings, because
+// the tool runs without them.
+func LoadSeed() (Migrate, Auth, error) {
+	mig, err := LoadMigrate()
+	if err != nil {
+		return Migrate{}, Auth{}, err
+	}
+	var a Auth
+	if err := env.Parse(&a); err != nil {
+		return Migrate{}, Auth{}, fmt.Errorf("load seed config: %w", err)
+	}
+	return mig, a, nil
+}
