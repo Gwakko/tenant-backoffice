@@ -182,6 +182,7 @@ func TestValidTokenReachesPlaceholder(t *testing.T) {
 	require.Equal(t, http.StatusNotImplemented, rec.Code, "authenticated: the placeholder answers")
 }
 
+// Test-ID: T-U-68
 func TestStaleTokenVersionIsRejected(t *testing.T) {
 	s := newStack(t)
 	u := newUser(2, user.StatusActive)

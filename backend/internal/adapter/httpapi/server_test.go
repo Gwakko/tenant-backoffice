@@ -215,6 +215,7 @@ func TestRequestID(t *testing.T) {
 	require.Equal(t, "generated-id-0001", res.problem(t).RequestID, "an error answer carries the request id")
 }
 
+// Test-ID: T-U-66
 func TestPanicDoesNotLeak(t *testing.T) {
 	h := newHarness(t, fakeHandlers{getMe: func() error { panic("secret-panic-detail: password=hunter2") }}, "GetMe")
 	res := h.do(t, req{method: "GET", path: "/api/v1/me", header: authed(map[string]string{"X-Request-Id": "req-panic-0001"})})
@@ -491,6 +492,7 @@ func TestLoginRateKeysUseNormalizedEmailAndAddress(t *testing.T) {
 	require.NotContains(t, a[1], "example.com", "the email is hashed in the key")
 }
 
+// Test-ID: T-U-67
 func TestAccessLogHasNoSecrets(t *testing.T) {
 	h := newHarness(t, nil)
 	h.do(t, req{
@@ -517,4 +519,41 @@ func TestAccessLogHasNoSecrets(t *testing.T) {
 func TestNewServerValidatesOptions(t *testing.T) {
 	_, err := httpapi.NewServer(httpapi.Options{})
 	require.Error(t, err)
+}
+
+// Test-ID: T-U-69
+// TestEveryOperationExceptPublicRequiresBearer walks every operation of the
+// OpenAPI contract and sends it without a token. Only the explicit public
+// operations may answer anything but 401 token_missing: a new route is closed
+// by default, and widening the public set must be a deliberate edit here.
+func TestEveryOperationExceptPublicRequiresBearer(t *testing.T) {
+	h := newHarness(t, fakeHandlers{})
+	public := map[string]bool{
+		"POST /auth/login":   true,
+		"POST /auth/refresh": true, // refresh is cookie plus CSRF, checked by its handler
+		"GET /healthz":       true,
+		"GET /readyz":        true,
+	}
+	const id = "0190a0b0-0000-7000-8000-000000000001"
+	idParam := regexp.MustCompile(`\{[^}]+\}`)
+
+	ops := operations(loadSpec(t))
+	require.GreaterOrEqual(t, len(ops), 30, "the walk must not be vacuous")
+
+	seenPublic := 0
+	for key, o := range ops {
+		path := idParam.ReplaceAllString(o.path, id)
+		if !strings.HasPrefix(path, "/healthz") && !strings.HasPrefix(path, "/readyz") {
+			path = "/api/v1" + path
+		}
+		res := h.do(t, req{method: o.method, path: path})
+		if public[key] {
+			seenPublic++
+			require.NotEqual(t, http.StatusUnauthorized, res.Code, key)
+			continue
+		}
+		require.Equal(t, http.StatusUnauthorized, res.Code, key)
+		require.Equal(t, "token_missing", res.problem(t).Code, key)
+	}
+	require.Equal(t, len(public), seenPublic, "every public operation exists in the contract")
 }

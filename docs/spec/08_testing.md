@@ -88,6 +88,11 @@
 | T-U-62 | `usecase/balance/transfer_test.go TestTransferAtomicOnFailure` | сбой на любом шаге перевода откатывает обе ноги и ключ | EC-80 |
 | T-U-63 | `usecase/settings/set_test.go TestSetSameValueIsNoop, TestSetDescendantCannotRelax` | повтор значения: 0 записей и 0 аудита; потомок не ослабляет запрет предка | EC-101, EC-140, EC-141 |
 | T-U-64 | `usecase/settings/get_test.go TestGetHidesSourceAboveAccessRoot` | источник выше корня доступа = nil при верном значении | EC-143 |
+| T-U-65 | `adapter/ratelimit/ratelimit_test.go TestBurstThenRefusal, TestRefillByClock, TestKeyCountIsBounded, TestConcurrentAllowIsExact` | корзина, сброс по часам, предел числа ключей, гонки | EC-108, EC-116 |
+| T-U-66 | `adapter/httpapi/server_test.go TestPanicDoesNotLeak, TestInternalErrorDoesNotLeak, TestNotFoundBodiesAreIdentical, TestLoginFailuresAreIdentical, TestErrorMappingTable` | ошибки без внутренних деталей, одинаковые 404 и login, маппинг по таблице `03` §2.3 | EC-54, EC-107 |
+| T-U-67 | `adapter/httpapi/server_test.go TestAccessLogHasNoSecrets` и `app/http_test.go TestAccessLogOfRealStackHasNoSecrets` | access-лог без токена, пароля, заголовков | |
+| T-U-68 | `app/http_test.go TestStaleTokenVersionIsRejected, TestForgedAlgorithmsAreRejected, TestExpiredToken` | authn через HTTP: старая версия, `alg: none`, истёкший | EC-102, EC-103, EC-105 |
+| T-U-69 | `adapter/httpapi/server_test.go TestEveryOperationExceptPublicRequiresBearer` | каждая операция контракта без токена даёт 401 `token_missing`, кроме явного списка публичных (login, refresh, healthz, readyz); новый маршрут закрыт по умолчанию | EC-102 |
 
 Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpapi` курсор и хэш) входят в `make test-unit`.
 
