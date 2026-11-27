@@ -2,7 +2,8 @@ import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 
 import { problemOf } from '@/api/result';
 import { requireSession } from '@/auth/guard';
-import { NodeNotFound, useNode } from '@/features/node';
+import { can } from '@/api/resources';
+import { NodeNotFound, useNode, usePerms } from '@/features/node';
 
 export const Route = createFileRoute('/nodes/$nodeId')({
   beforeLoad: ({ context, location }) => requireSession(context.api, location.href),
@@ -15,6 +16,7 @@ const activeTabClass = { className: 'bg-slate-900 text-white hover:bg-slate-900'
 function NodeLayout() {
   const { nodeId } = Route.useParams();
   const node = useNode(nodeId);
+  const perms = usePerms(nodeId);
 
   // 404 means "does not exist" and "no access" alike (spec 06 section 6, EC-118).
   if (node.isError && problemOf(node.error).status === 404) return <NodeNotFound />;
@@ -31,6 +33,19 @@ function NodeLayout() {
         <Link to="/nodes/$nodeId/members" params={{ nodeId }} activeProps={activeTabClass} className={tabClass}>
           Members
         </Link>
+        <Link to="/nodes/$nodeId/operations" params={{ nodeId }} activeProps={activeTabClass} className={tabClass}>
+          Operations
+        </Link>
+        {can(perms.data, 'report.read') && (
+          <Link to="/nodes/$nodeId/reports" params={{ nodeId }} activeProps={activeTabClass} className={tabClass}>
+            Reports
+          </Link>
+        )}
+        {can(perms.data, 'audit.read') && (
+          <Link to="/nodes/$nodeId/audit" params={{ nodeId }} activeProps={activeTabClass} className={tabClass}>
+            Audit
+          </Link>
+        )}
       </nav>
       <Outlet />
     </div>

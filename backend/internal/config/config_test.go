@@ -8,10 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/config"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/testkit"
 )
 
 // Test-ID: T-CFG-01
 func TestLoadMissingRequiredNamesVariable(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", "")
 	_, err := config.Load()
 	require.Error(t, err)
@@ -20,6 +22,7 @@ func TestLoadMissingRequiredNamesVariable(t *testing.T) {
 
 // Test-ID: T-CFG-02
 func TestLoadDefaults(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -30,6 +33,7 @@ func TestLoadDefaults(t *testing.T) {
 
 // Test-ID: T-CFG-03
 func TestLoadRejectsBadLogSettings(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	t.Setenv("TB_LOG_FORMAT", "xml")
 	_, err := config.Load()
@@ -42,6 +46,7 @@ func TestLoadRejectsBadLogSettings(t *testing.T) {
 }
 
 func TestLoadDatabaseDefaultsAndOverrides(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -61,6 +66,7 @@ func TestLoadDatabaseDefaultsAndOverrides(t *testing.T) {
 }
 
 func TestLoadHTTPDefaultsAreSafe(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -77,6 +83,7 @@ func TestLoadHTTPDefaultsAreSafe(t *testing.T) {
 }
 
 func TestLoadCursorKeyValidation(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	good := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" // 32 bytes
 	t.Setenv("TB_CURSOR_KEY", good)
@@ -101,6 +108,7 @@ func TestLoadCursorKeyValidation(t *testing.T) {
 }
 
 func TestLoadRejectsBadHTTPAndRateSettings(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	t.Setenv("TB_HTTP_MAX_BODY_BYTES", "0")
 	_, err := config.Load()
@@ -113,6 +121,7 @@ func TestLoadRejectsBadHTTPAndRateSettings(t *testing.T) {
 }
 
 func TestLoadCurrency(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	cfg, err := config.Load()
 	require.NoError(t, err)

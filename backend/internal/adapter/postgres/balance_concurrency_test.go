@@ -330,7 +330,10 @@ func TestParallelTransferDuringMove(t *testing.T) {
 		before := w.balanceOf("A1u1")
 		errs := parallel(
 			func() error { return w.moveAs(nc, "ownerRoot", "A1u1", "B1") },
-			func() error { _, err := c.transferAs("ownerRoot", "A1u2", "A1u1", "10", fmt.Sprintf("t-%d", i)); return err },
+			func() error {
+				_, err := c.transferAs("ownerRoot", "A1u2", "A1u1", "10", fmt.Sprintf("t-%d", i))
+				return err
+			},
 		)
 		require.NoError(t, errs[0], "iteration %d: move", i)
 		require.NoError(t, errs[1], "iteration %d: transfer", i)

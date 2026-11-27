@@ -28,6 +28,7 @@ import (
 	"github.com/Gwakko/tenant-backoffice/backend/internal/app"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/config"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/user"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/testkit"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/auth"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/port"
 )
@@ -335,6 +336,7 @@ func TestAccessLogOfRealStackHasNoSecrets(t *testing.T) {
 }
 
 func TestCursorCodecFromConfig(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	clk := &clock{t: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)}
 	var logBuf bytes.Buffer
@@ -367,6 +369,7 @@ func TestCursorCodecFromConfig(t *testing.T) {
 }
 
 func TestBuildAPIWiresTheServer(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	cfg, err := config.Load()
 	require.NoError(t, err)

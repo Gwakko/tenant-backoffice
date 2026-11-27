@@ -14,7 +14,7 @@ function HomePage() {
     <section>
       <h1 className="text-xl font-semibold">Tenant Backoffice</h1>
       <p className="mt-2 text-slate-600">
-        {user ? `Signed in as ${user.email}.` : 'Signed in.'} The node tree arrives in the next milestone.
+        {user ? `Signed in as ${user.email}.` : 'Signed in.'} Select a node in the tree.
       </p>
     </section>
   );

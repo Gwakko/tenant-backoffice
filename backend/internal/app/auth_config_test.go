@@ -8,9 +8,11 @@ import (
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/app"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/config"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/testkit"
 )
 
 func TestAuthConfigDefaultsAndMapping(t *testing.T) {
+	testkit.ClearConfigEnv(t)
 	t.Setenv("TB_HTTP_ADDR", ":0")
 	t.Setenv("TB_JWT_KEYS_DIR", "/run/keys")
 	cfg, err := config.Load()

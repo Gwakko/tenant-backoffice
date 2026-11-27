@@ -13,7 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NodesNodeIdRouteImport } from './routes/nodes.$nodeId'
 import { Route as NodesNodeIdIndexRouteImport } from './routes/nodes.$nodeId.index'
+import { Route as NodesNodeIdAuditRouteImport } from './routes/nodes.$nodeId.audit'
 import { Route as NodesNodeIdMembersRouteImport } from './routes/nodes.$nodeId.members'
+import { Route as NodesNodeIdOperationsRouteImport } from './routes/nodes.$nodeId.operations'
+import { Route as NodesNodeIdReportsRouteImport } from './routes/nodes.$nodeId.reports'
 import { Route as NodesNodeIdSettingsRouteImport } from './routes/nodes.$nodeId.settings'
 
 const IndexRoute = IndexRouteImport.update({
@@ -36,9 +39,24 @@ const NodesNodeIdIndexRoute = NodesNodeIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => NodesNodeIdRoute,
 } as any)
+const NodesNodeIdAuditRoute = NodesNodeIdAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => NodesNodeIdRoute,
+} as any)
 const NodesNodeIdMembersRoute = NodesNodeIdMembersRouteImport.update({
   id: '/members',
   path: '/members',
+  getParentRoute: () => NodesNodeIdRoute,
+} as any)
+const NodesNodeIdOperationsRoute = NodesNodeIdOperationsRouteImport.update({
+  id: '/operations',
+  path: '/operations',
+  getParentRoute: () => NodesNodeIdRoute,
+} as any)
+const NodesNodeIdReportsRoute = NodesNodeIdReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => NodesNodeIdRoute,
 } as any)
 const NodesNodeIdSettingsRoute = NodesNodeIdSettingsRouteImport.update({
@@ -51,14 +69,20 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/nodes/$nodeId': typeof NodesNodeIdRouteWithChildren
+  '/nodes/$nodeId/audit': typeof NodesNodeIdAuditRoute
   '/nodes/$nodeId/members': typeof NodesNodeIdMembersRoute
+  '/nodes/$nodeId/operations': typeof NodesNodeIdOperationsRoute
+  '/nodes/$nodeId/reports': typeof NodesNodeIdReportsRoute
   '/nodes/$nodeId/settings': typeof NodesNodeIdSettingsRoute
   '/nodes/$nodeId/': typeof NodesNodeIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/nodes/$nodeId/audit': typeof NodesNodeIdAuditRoute
   '/nodes/$nodeId/members': typeof NodesNodeIdMembersRoute
+  '/nodes/$nodeId/operations': typeof NodesNodeIdOperationsRoute
+  '/nodes/$nodeId/reports': typeof NodesNodeIdReportsRoute
   '/nodes/$nodeId/settings': typeof NodesNodeIdSettingsRoute
   '/nodes/$nodeId': typeof NodesNodeIdIndexRoute
 }
@@ -67,7 +91,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/nodes/$nodeId': typeof NodesNodeIdRouteWithChildren
+  '/nodes/$nodeId/audit': typeof NodesNodeIdAuditRoute
   '/nodes/$nodeId/members': typeof NodesNodeIdMembersRoute
+  '/nodes/$nodeId/operations': typeof NodesNodeIdOperationsRoute
+  '/nodes/$nodeId/reports': typeof NodesNodeIdReportsRoute
   '/nodes/$nodeId/settings': typeof NodesNodeIdSettingsRoute
   '/nodes/$nodeId/': typeof NodesNodeIdIndexRoute
 }
@@ -77,14 +104,20 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/nodes/$nodeId'
+    | '/nodes/$nodeId/audit'
     | '/nodes/$nodeId/members'
+    | '/nodes/$nodeId/operations'
+    | '/nodes/$nodeId/reports'
     | '/nodes/$nodeId/settings'
     | '/nodes/$nodeId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
+    | '/nodes/$nodeId/audit'
     | '/nodes/$nodeId/members'
+    | '/nodes/$nodeId/operations'
+    | '/nodes/$nodeId/reports'
     | '/nodes/$nodeId/settings'
     | '/nodes/$nodeId'
   id:
@@ -92,7 +125,10 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/nodes/$nodeId'
+    | '/nodes/$nodeId/audit'
     | '/nodes/$nodeId/members'
+    | '/nodes/$nodeId/operations'
+    | '/nodes/$nodeId/reports'
     | '/nodes/$nodeId/settings'
     | '/nodes/$nodeId/'
   fileRoutesById: FileRoutesById
@@ -133,11 +169,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NodesNodeIdIndexRouteImport
       parentRoute: typeof NodesNodeIdRoute
     }
+    '/nodes/$nodeId/audit': {
+      id: '/nodes/$nodeId/audit'
+      path: '/audit'
+      fullPath: '/nodes/$nodeId/audit'
+      preLoaderRoute: typeof NodesNodeIdAuditRouteImport
+      parentRoute: typeof NodesNodeIdRoute
+    }
     '/nodes/$nodeId/members': {
       id: '/nodes/$nodeId/members'
       path: '/members'
       fullPath: '/nodes/$nodeId/members'
       preLoaderRoute: typeof NodesNodeIdMembersRouteImport
+      parentRoute: typeof NodesNodeIdRoute
+    }
+    '/nodes/$nodeId/operations': {
+      id: '/nodes/$nodeId/operations'
+      path: '/operations'
+      fullPath: '/nodes/$nodeId/operations'
+      preLoaderRoute: typeof NodesNodeIdOperationsRouteImport
+      parentRoute: typeof NodesNodeIdRoute
+    }
+    '/nodes/$nodeId/reports': {
+      id: '/nodes/$nodeId/reports'
+      path: '/reports'
+      fullPath: '/nodes/$nodeId/reports'
+      preLoaderRoute: typeof NodesNodeIdReportsRouteImport
       parentRoute: typeof NodesNodeIdRoute
     }
     '/nodes/$nodeId/settings': {
@@ -151,13 +208,19 @@ declare module '@tanstack/react-router' {
 }
 
 interface NodesNodeIdRouteChildren {
+  NodesNodeIdAuditRoute: typeof NodesNodeIdAuditRoute
   NodesNodeIdMembersRoute: typeof NodesNodeIdMembersRoute
+  NodesNodeIdOperationsRoute: typeof NodesNodeIdOperationsRoute
+  NodesNodeIdReportsRoute: typeof NodesNodeIdReportsRoute
   NodesNodeIdSettingsRoute: typeof NodesNodeIdSettingsRoute
   NodesNodeIdIndexRoute: typeof NodesNodeIdIndexRoute
 }
 
 const NodesNodeIdRouteChildren: NodesNodeIdRouteChildren = {
+  NodesNodeIdAuditRoute: NodesNodeIdAuditRoute,
   NodesNodeIdMembersRoute: NodesNodeIdMembersRoute,
+  NodesNodeIdOperationsRoute: NodesNodeIdOperationsRoute,
+  NodesNodeIdReportsRoute: NodesNodeIdReportsRoute,
   NodesNodeIdSettingsRoute: NodesNodeIdSettingsRoute,
   NodesNodeIdIndexRoute: NodesNodeIdIndexRoute,
 }
