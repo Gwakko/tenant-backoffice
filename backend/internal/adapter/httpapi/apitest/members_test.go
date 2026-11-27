@@ -43,7 +43,7 @@ func TestAPISelfRevoke(t *testing.T) {
 	require.Equal(t, []uuid.UUID{w.AdminA}, auditActors(t, s, "member.revoked", w.A))
 }
 
-// Proposed ID (not in spec 08 yet): T-A-40
+// Test-ID: T-A-40
 func TestAPIMembers(t *testing.T) {
 	s := apitest.NewStack(t)
 	w := s.World
@@ -132,7 +132,7 @@ func TestAPIMembers(t *testing.T) {
 	require.NotContains(t, s.Log.String(), newPassword12)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-41
+// Test-ID: T-A-41
 // EC-35: the last owner of the root cannot be removed or demoted.
 func TestAPILastRootOwner(t *testing.T) {
 	s := apitest.NewStack(t)

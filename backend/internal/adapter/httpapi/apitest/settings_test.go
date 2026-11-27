@@ -60,7 +60,7 @@ func TestAPISettingsValidation(t *testing.T) {
 		RequireProblem(http.StatusBadRequest, "validation_failed")
 }
 
-// Proposed ID (not in spec 08 yet): T-A-42
+// Test-ID: T-A-42
 func TestAPISettingsRoundTrip(t *testing.T) {
 	s := apitest.NewStack(t)
 	w := s.World

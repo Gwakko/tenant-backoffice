@@ -37,7 +37,7 @@ func signIn(t *testing.T, s *apitest.Stack, email, password string) session {
 	return session{Client: s.Anon.WithToken(tr.AccessToken), refresh: c.Value, tokens: tr}
 }
 
-// Proposed ID (not in spec 08 yet): T-A-31
+// Test-ID: T-A-31
 func TestAPILoginAndCookieAttributes(t *testing.T) {
 	s := apitest.NewStack(t)
 	res := s.Login(s.World.Emails[s.World.AdminA], apitest.Password)
@@ -64,7 +64,7 @@ func TestAPILoginAndCookieAttributes(t *testing.T) {
 	require.NotContains(t, s.Log.String(), apitest.Password)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-31
+// Test-ID: T-A-31
 func TestAPICookieSecureIsConfigurable(t *testing.T) {
 	s := apitest.NewStack(t, apitest.WithCookieSecure(false))
 	res := s.Login(s.World.Emails[s.World.AdminA], apitest.Password)
@@ -76,7 +76,7 @@ func TestAPICookieSecureIsConfigurable(t *testing.T) {
 	require.Equal(t, http.SameSiteStrictMode, c.SameSite)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-32
+// Test-ID: T-A-32
 // EC-107: a wrong password, an unknown email and an inactive user get the same answer.
 func TestAPILoginFailuresAreIdentical(t *testing.T) {
 	s := apitest.NewStack(t)
@@ -116,7 +116,7 @@ func TestAPILoginRateLimit(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, s.Login("someone-else@example.test", "x").Status)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-33
+// Test-ID: T-A-33
 func TestAPIRefreshRequiresCSRFHeader(t *testing.T) {
 	s := apitest.NewStack(t)
 	u := signIn(t, s, s.World.Emails[s.World.AdminA], apitest.Password)
@@ -156,7 +156,7 @@ func TestAPIRefreshRequiresCSRFHeader(t *testing.T) {
 	requireStatus(t, s.Anon.WithToken(tr.AccessToken).Get(api+"/me"), http.StatusOK)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-34
+// Test-ID: T-A-34
 // EC-106: a used refresh token presented again revokes the whole family.
 func TestAPIRefreshReplayRevokesFamily(t *testing.T) {
 	s := apitest.NewStack(t)
@@ -181,7 +181,7 @@ func TestAPIRefreshReplayRevokesFamily(t *testing.T) {
 	requireStatus(t, refresh(other.refresh), http.StatusOK)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-35
+// Test-ID: T-A-35
 func TestAPILogout(t *testing.T) {
 	s := apitest.NewStack(t)
 	u := signIn(t, s, s.World.Emails[s.World.AdminA], apitest.Password)

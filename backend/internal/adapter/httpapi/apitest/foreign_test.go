@@ -12,7 +12,7 @@ import (
 	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/httpapi/apitest"
 )
 
-// Proposed ID (not in spec 08 yet): T-A-43
+// Test-ID: T-A-43
 // EC-54: for every operation on nodes, members and settings, a node of another
 // branch answers byte for byte like a node that does not exist.
 func TestAPIForeignNodeIsIndistinguishableFromMissing(t *testing.T) {

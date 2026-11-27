@@ -200,3 +200,5 @@ components:
 Валидация по `pattern` из OpenAPI в рантайме не включается (нет middleware-валидатора): источник проверок — `Input.Validate()` и домен; OpenAPI документирует их. Тест T-CI-03 проверяет, что `api/openapi.yaml` валиден (`kin-openapi` loader + `Validate`).
 
 Примечание M4.2: курсор содержит поле срока жизни `e`; код `not_implemented` (501) временный и существует только пока обработчики не реализованы.
+
+Примечание M4.3: ошибки полей узла (`invalid_node_type`, `invalid_name`) приходят как `validation_failed` с причиной в `errors[]`, а не как верхнеуровневый код; `move-targets` для корня возвращает пустую страницу; refresh без заголовка CSRF даёт 401 `refresh_invalid`, logout без CSRF 401 `token_invalid`. В контракте исправлено имя заголовка ответа `Set-Cookie` (генератор писал `SetCookie`, и браузер не получал cookie).

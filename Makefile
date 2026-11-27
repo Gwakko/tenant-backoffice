@@ -51,7 +51,7 @@ keys:
 	test -f keys/cursor.env || echo "TB_CURSOR_KEY=$$(openssl rand -base64 32)" > keys/cursor.env
 
 # Targets below stay stubs (fail loudly) until the milestone that owns them.
-seed lint-web typecheck build:
+lint-web typecheck build:
 	@echo "$@: not implemented yet"; exit 1
 
 # Generates Go DTOs and the strict server interface from api/openapi.yaml (oapi-codegen, version pinned
@@ -82,6 +82,11 @@ test-int:
 # Tenant isolation suite (T-ISO): real Postgres, connected as tb_app.
 test-iso:
 	cd backend && $(GO) go test -race -count=1 -tags integration $(GOTESTFLAGS) ./internal/isolation/...
+
+# Loads backend/seed/demo.json under the owner role (TB_DB_MIGRATE_URL); a second run changes nothing.
+# SEED_FLAGS=-force skips the refusal to run on foreign data.
+seed:
+	cd backend && $(GO) go run ./cmd/seed $(SEED_FLAGS)
 
 # API suite (T-A): the real API over a real Postgres. One regex without `|` on purpose: GOTESTFLAGS is
 # expanded unquoted by the shell, so every API test is named TestAPI... and one prefix selects them all.

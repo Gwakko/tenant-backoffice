@@ -13,7 +13,7 @@ import (
 	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/httpapi/apitest"
 )
 
-// Proposed ID (not in spec 08 yet): T-A-45
+// Test-ID: T-A-45
 // A failure of the database reaches the client as a generic answer: no table,
 // SQL state or driver text, and the cause goes to the log with the request id.
 func TestAPIDatabaseErrorIsNotLeaked(t *testing.T) {

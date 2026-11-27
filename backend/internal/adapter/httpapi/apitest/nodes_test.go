@@ -81,7 +81,7 @@ func TestAPIEmptyChildren(t *testing.T) {
 	require.JSONEq(t, `{"items":[],"nextCursor":null}`, string(res.Body))
 }
 
-// Proposed ID (not in spec 08 yet): T-A-36
+// Test-ID: T-A-36
 func TestAPINodeLifecycle(t *testing.T) {
 	s := apitest.NewStack(t)
 	w := s.World
@@ -140,7 +140,7 @@ func TestAPINodeLifecycle(t *testing.T) {
 	require.Equal(t, []uuid.UUID{w.AdminA}, auditActors(t, s, "node.created", u.Id))
 }
 
-// Proposed ID (not in spec 08 yet): T-A-37
+// Test-ID: T-A-37
 func TestAPIChildrenPagination(t *testing.T) {
 	s := apitest.NewStack(t)
 	w := s.World
@@ -196,7 +196,7 @@ func uniq(in []string) []string {
 	return out
 }
 
-// Proposed ID (not in spec 08 yet): T-A-38
+// Test-ID: T-A-38
 // The actor is the owner of the token, never a field of the request.
 func TestAPIActorIsNeverTakenFromTheRequest(t *testing.T) {
 	s := apitest.NewStack(t)

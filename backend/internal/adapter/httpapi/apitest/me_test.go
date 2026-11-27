@@ -47,7 +47,7 @@ func TestAPIAccessRootsMultiBranch(t *testing.T) {
 	orphan.Get(nodeURL(w.A1, "")).RequireProblem(http.StatusNotFound, "not_found")
 }
 
-// Proposed ID (not in spec 08 yet): T-A-39
+// Test-ID: T-A-39
 // The 503 of the unwired authenticator is gone: a signed token reaches the use cases.
 func TestAPIAuthenticatedRequestsAreServed(t *testing.T) {
 	s := apitest.NewStack(t)

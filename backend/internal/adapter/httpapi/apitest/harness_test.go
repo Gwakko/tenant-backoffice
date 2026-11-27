@@ -12,7 +12,7 @@ import (
 	"github.com/Gwakko/tenant-backoffice/backend/internal/testkit"
 )
 
-// Proposed ID (not in spec 08 yet): T-A-44
+// Test-ID: T-A-44
 // The pool of the API runs as tb_app (row-level security applies), not as the admin of the test server.
 func TestAPIHarnessRunsAsApplicationRole(t *testing.T) {
 	db := testkit.NewDB(t)

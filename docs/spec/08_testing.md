@@ -212,14 +212,14 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 
 | ID | Имя | EC |
 |---|---|---|
-| T-A-01 | `nodes_test.go TestCreateInvalidParentType` | EC-01 |
-| T-A-02 | `nodes_test.go TestMoveInvalidType` | EC-06 |
-| T-A-03 | `nodes_test.go TestDeleteWithChildren` | EC-14 |
-| T-A-04 | `nodes_test.go TestEmptyChildren` | EC-28 |
-| T-A-05 | `me_test.go TestAccessRootsMultiBranch` | EC-32 |
-| T-A-06 | `authz_test.go TestDowngradeAppliesNextRequest` | EC-38 |
-| T-A-07 | `members_test.go TestSelfRevoke` | EC-42 |
-| T-A-08 | `authz_test.go TestViewerCannotWrite` | EC-43 |
+| T-A-01 | `apitest/nodes_test.go TestAPICreateInvalidParentType` | EC-01 |
+| T-A-02 | `apitest/nodes_test.go TestAPIMoveInvalidType` | EC-06 |
+| T-A-03 | `apitest/nodes_test.go TestAPIDeleteWithChildren` | EC-14 |
+| T-A-04 | `apitest/nodes_test.go TestAPIEmptyChildren` | EC-28 |
+| T-A-05 | `apitest/me_test.go TestAPIAccessRootsMultiBranch` | EC-32 |
+| T-A-06 | `apitest/authz_test.go TestAPIDowngradeAppliesNextRequest` | EC-38 |
+| T-A-07 | `apitest/members_test.go TestAPISelfRevoke` | EC-42 |
+| T-A-08 | `apitest/authz_test.go TestAPIViewerCannotWrite` | EC-43 |
 | T-A-09 | `filters_test.go TestInjectionInQueryParams` | EC-64 |
 | T-A-10 | `idempotency_test.go TestReplaySameBody` | EC-65 |
 | T-A-11 | `idempotency_test.go TestReuseDifferentBody` | EC-66 |
@@ -227,13 +227,28 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-A-13 | `balance_test.go TestAmountFormat` | EC-76 |
 | T-A-14 | `pagination_test.go TestLimitValidation` | EC-94 |
 | T-A-15 | `audit_test.go TestFailuresNotAuditedButLogged` (slog-хендлер теста собирает записи) | EC-99 |
-| T-A-16 | `auth_test.go TestStaleTokenVersion` | EC-105 |
-| T-A-17 | `auth_test.go TestLoginRateLimit` | EC-108 |
+| T-A-16 | `apitest/auth_test.go TestAPIStaleTokenVersion` | EC-105 |
+| T-A-17 | `apitest/auth_test.go TestAPILoginRateLimit` | EC-108 |
 | T-A-18 | `limits_test.go TestBodyTooLarge` | EC-113 |
 | T-A-19 | `limits_test.go TestUnknownFields` | EC-114 |
 | T-A-20 | `limits_test.go TestInvalidUUID` | EC-115 |
 | T-A-21 | `limits_test.go TestWriteRateLimit` | EC-116 |
-| T-A-22 | `settings_test.go TestSettingsValidation` | EC-139 |
+| T-A-22 | `apitest/settings_test.go TestAPISettingsValidation` | EC-139 |
+| T-A-31 | `apitest/auth_test.go TestAPILoginAndCookieAttributes, TestAPICookieSecureIsConfigurable` | атрибуты cookie refresh: HttpOnly, SameSite=Strict, Path, Secure по конфигу | EC-107 |
+| T-A-32 | `apitest/auth_test.go TestAPILoginFailuresAreIdentical` | ответ входа одинаков для неверного пароля, неизвестного email и неактивного пользователя | EC-107 |
+| T-A-33 | `apitest/auth_test.go TestAPIRefreshRequiresCSRFHeader` | refresh и logout без заголовка CSRF отвергаются до использования токена |  |
+| T-A-34 | `apitest/auth_test.go TestAPIRefreshReplayRevokesFamily` | повтор использованного refresh отзывает семью | EC-106 |
+| T-A-35 | `apitest/auth_test.go TestAPILogout` | выход отзывает токен и сбрасывает cookie |  |
+| T-A-36 | `apitest/nodes_test.go TestAPINodeLifecycle` | жизненный цикл узла через HTTP |  |
+| T-A-37 | `apitest/nodes_test.go TestAPIChildrenPagination` | курсорная пагинация детей | EC-62, EC-93 |
+| T-A-38 | `apitest/auth_test.go TestAPIActorIsNeverTakenFromTheRequest` | актор берётся только из токена, не из тела, параметров или заголовков |  |
+| T-A-39 | `apitest/me_test.go TestAPIAuthenticatedRequestsAreServed` | запросы с токеном обслуживаются настоящим стеком |  |
+| T-A-40 | `apitest/members_test.go TestAPIMembers` | участники через HTTP | EC-33, EC-41 |
+| T-A-41 | `apitest/members_test.go TestAPILastRootOwner` | последний владелец корня через HTTP | EC-35 |
+| T-A-42 | `apitest/settings_test.go TestAPISettingsRoundTrip` | настройки через HTTP: запись, чтение, сброс |  |
+| T-A-43 | `apitest/foreign_test.go TestAPIForeignNodeIsIndistinguishableFromMissing` | чужой узел неотличим от несуществующего (тела побайтно без `requestId`) на каждой операции узлов, участников и настроек | EC-54 |
+| T-A-44 | `apitest/harness_test.go TestAPIHarnessRunsAsApplicationRole` | стенд работает от роли `tb_app` |  |
+| T-A-45 | `apitest/errors_test.go TestAPIDatabaseErrorIsNotLeaked` | ошибка БД не попадает в тело ответа |  |
 
 Сценарные без EC: T-A-30 `TestHappyPathFullScenario` (логин -> создать дерево -> роли -> начисление/перевод -> отчёт -> аудит).
 
