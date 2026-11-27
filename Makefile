@@ -150,6 +150,9 @@ e2e: .env keys $(WEB_STAMP)
 e2e-inner:
 	cd web && npx playwright test
 
+# Directories searched for Test-ID markers (Go tests, web unit tests, the web lint rules, e2e).
+ECCHECK_ROOTS ?= .,../web/src,../web/e2e,../web/eslint
+
 lint: lint-go lint-web
 
 lint-go:
@@ -161,10 +164,10 @@ test-unit:
 # Edge-case coverage (T-CI-05, spec 11). Soft mode: report only, never fails on gaps.
 # Strict mode (no -soft) becomes part of ci-go in M6.3.
 ec-check:
-	cd backend && $(GO) go run ./tools/eccheck -soft
+	cd backend && $(GO) go run ./tools/eccheck -roots $(ECCHECK_ROOTS)
 
 ec-report:
-	cd backend && $(GO) go run ./tools/eccheck -soft -markdown
+	cd backend && $(GO) go run ./tools/eccheck -soft -markdown -roots $(ECCHECK_ROOTS)
 
 # Hosts must come from the environment, never hard-coded into code or scripts (T-CI-04).
 # Service hostnames in connection strings, plus localhost/127.0.0.1 literals in tests and web sources.
@@ -188,8 +191,8 @@ ci: .env
 ci-inner: ci-go ci-web
 
 # Goal list per spec 08 section 5: gen-check (Go half here, web half in ci-web) lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api ec-check.
-# ec-check (M1.7, soft) stays out of ci-go until M6.3 makes it strict; it is added as it lands.
-ci-go: gen-check-go lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api
+# ec-check is strict since M6.3: every edge case has its tests, every marker is declared in spec 08.
+ci-go: gen-check-go lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api ec-check
 
 # Goal list per spec 08 section 5: npm ci typecheck lint-web test-web build, plus gen-check-web for schema.d.ts.
 ci-web: web-install gen-check-web typecheck lint-web test-web build

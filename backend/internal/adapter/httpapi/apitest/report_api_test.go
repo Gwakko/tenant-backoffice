@@ -42,7 +42,8 @@ func windowQuery(extra ...string) url.Values {
 // second, a transfer of 100 from the second to the first (both legs).
 // So a company has 4 operations: credits 1700, debits 100, net 1600.
 
-// Test-ID: T-A-62, the summary report over HTTP, shape and numbers.
+// Test-ID: T-A-62
+// The summary report over HTTP, shape and numbers.
 func TestAPIReportSummary(t *testing.T) {
 	s := apitest.NewStack(t)
 	w := s.World
@@ -98,7 +99,8 @@ func TestAPIReportSummary(t *testing.T) {
 	require.Equal(t, gen.Totals{Count: 2, Credits: "600", Debits: "100", Net: "500"}, decode[gen.SubtreeSummary](t, res).Totals)
 }
 
-// Test-ID: T-A-63, the children report over HTTP, shape,
+// Test-ID: T-A-63
+// The children report over HTTP, shape,
 // balances and the cursor.
 func TestAPIReportChildren(t *testing.T) {
 	s := apitest.NewStack(t)
@@ -165,7 +167,8 @@ func TestAPIReportChildren(t *testing.T) {
 		RequireProblem(http.StatusBadRequest, "invalid_cursor")
 }
 
-// Test-ID: T-A-64, EC-90 and the parameter errors of the
+// Test-ID: T-A-64
+// Covers EC-90 and the parameter errors of the
 // reports over HTTP.
 func TestAPIReportInvalidPeriod(t *testing.T) {
 	s := apitest.NewStack(t)
