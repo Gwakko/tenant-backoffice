@@ -1,0 +1,2073 @@
+openapi: 3.0.3
+info:
+  title: Tenant Backoffice API
+  version: 1.0.0
+  description: |
+    Source of truth for the REST contract (spec 03). Money is always a string of digits in minor
+    units. Errors are RFC 9457 problem details (`application/problem+json`).
+    Runtime validation of patterns and enums is done by `Input.Validate()` and the domain;
+    this document describes the same rules.
+    `x-error-codes` lists, per response status, the error codes the operation can return.
+servers:
+  - url: /api/v1
+tags:
+  - { name: health }
+  - { name: auth }
+  - { name: me }
+  - { name: nodes }
+  - { name: settings }
+  - { name: members }
+  - { name: balance }
+  - { name: operations }
+  - { name: reports }
+  - { name: audit }
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    servers:
+      - url: /
+    get:
+      operationId: healthz
+      summary: Liveness probe (the process is alive)
+      tags: [health]
+      security: []
+      responses:
+        '200':
+          description: Alive
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+  /readyz:
+    servers:
+      - url: /
+    get:
+      operationId: readyz
+      summary: Readiness probe (the database answers)
+      tags: [health]
+      security: []
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+        '503':
+          description: Not ready (the database does not answer)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+  /auth/login:
+    post:
+      operationId: login
+      summary: Sign in with email and password
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Access token; the refresh token is set as the tb_refresh cookie
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            SetCookie: { $ref: '#/components/headers/SetCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed]
+        '401': [invalid_credentials]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /auth/refresh:
+    post:
+      operationId: refresh
+      summary: Rotate the refresh cookie and issue a new access token
+      tags: [auth]
+      security:
+        - {refreshCookie: [], csrfHeader: []}
+      responses:
+        '200':
+          description: New access token and a new tb_refresh cookie
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            SetCookie: { $ref: '#/components/headers/SetCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '401': [refresh_invalid]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Sign out; revokes the refresh family and clears the cookie
+      tags: [auth]
+      responses:
+        '204':
+          description: Signed out
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            SetCookie: { $ref: '#/components/headers/SetCookie' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '401': [token_missing, token_expired, token_invalid]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /auth/password:
+    post:
+      operationId: changePassword
+      summary: Change the own password
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '204':
+          description: Changed; all refresh families revoked
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_password]
+        '401': [token_missing, token_expired, token_invalid, invalid_credentials]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /me:
+    get:
+      operationId: getMe
+      summary: Current user and access roots
+      tags: [me]
+      responses:
+        '200':
+          description: Profile
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '401': [token_missing, token_expired, token_invalid]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /me/permissions:
+    get:
+      operationId: getMyPermissions
+      summary: Role and permissions of the current user on a node
+      tags: [me]
+      parameters:
+        - $ref: '#/components/parameters/NodeIdQuery'
+      responses:
+        '200':
+          description: Permissions
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NodePermissions' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: getNode
+      summary: Get a node
+      tags: [nodes]
+      responses:
+        '200':
+          description: Node
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Node' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+    patch:
+      operationId: renameNode
+      summary: Rename a node
+      tags: [nodes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenameNodeRequest' }
+      responses:
+        '200':
+          description: Renamed node
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Node' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '409': [name_taken]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+    delete:
+      operationId: deleteNode
+      summary: Delete a node
+      tags: [nodes]
+      responses:
+        '204':
+          description: Deleted
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '409': [node_has_children, node_has_balance, node_has_history]
+        '422': [root_immutable]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/children:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: listChildren
+      summary: List direct children
+      tags: [nodes]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/Query'
+      responses:
+        '200':
+          description: A page of children
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NodeSummaryPage' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id, invalid_cursor]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+    post:
+      operationId: createChild
+      summary: Create a child node
+      tags: [nodes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateNodeRequest' }
+      responses:
+        '201':
+          description: Created node
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Node' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '409': [name_taken, node_inactive, children_limit]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '422': [invalid_parent_type]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/move:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    post:
+      operationId: moveNode
+      summary: Move a node under another parent
+      tags: [nodes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MoveNodeRequest' }
+      responses:
+        '200':
+          description: Moved node
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Node' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '409': [name_taken, node_inactive, children_limit]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '422': [move_cycle, invalid_parent_type, root_immutable]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/move-targets:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: listMoveTargets
+      summary: List valid new parents for a node
+      tags: [nodes]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Query'
+      responses:
+        '200':
+          description: A page of candidate parents
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NodeSummaryPage' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id, invalid_cursor]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '422': [root_immutable]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/deactivate:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    post:
+      operationId: deactivateNode
+      summary: Deactivate a node
+      tags: [nodes]
+      responses:
+        '200':
+          description: Node
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Node' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '422': [root_immutable]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/activate:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    post:
+      operationId: activateNode
+      summary: Activate a node
+      tags: [nodes]
+      responses:
+        '200':
+          description: Node
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Node' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/settings:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: listSettings
+      summary: Own and effective settings of a node
+      tags: [settings]
+      responses:
+        '200':
+          description: Settings
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SettingList' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/settings/{key}:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+      - $ref: '#/components/parameters/SettingKeyPath'
+    put:
+      operationId: putSetting
+      summary: Set an own setting value
+      tags: [settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PutSettingRequest' }
+      responses:
+        '200':
+          description: The setting after the change
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SettingItem' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found, unknown_setting]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '422': [invalid_setting_value]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+    delete:
+      operationId: deleteSetting
+      summary: Remove an own setting value (inherit again)
+      tags: [settings]
+      responses:
+        '200':
+          description: The setting after the change
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SettingItem' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found, unknown_setting]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/members:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: listMembers
+      summary: List members of a node
+      tags: [members]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Inherited'
+      responses:
+        '200':
+          description: A page of members
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MemberPage' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id, invalid_cursor]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+    post:
+      operationId: addMember
+      summary: Grant a role (creates the user when the email is new)
+      tags: [members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddMemberRequest' }
+      responses:
+        '201':
+          description: Created assignment
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Member' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden, role_not_grantable]
+        '404': [not_found]
+        '409': [user_inactive]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/members/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+      - $ref: '#/components/parameters/UserId'
+    put:
+      operationId: changeMemberRole
+      summary: Change the role of a member
+      tags: [members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangeRoleRequest' }
+      responses:
+        '200':
+          description: Updated assignment
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Member' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden, role_not_grantable]
+        '404': [not_found]
+        '409': [last_root_owner]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+    delete:
+      operationId: removeMember
+      summary: Revoke the role of a member
+      tags: [members]
+      responses:
+        '204':
+          description: Revoked
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden, role_not_grantable]
+        '404': [not_found]
+        '409': [last_root_owner]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/balance:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: getBalance
+      summary: Current balance of a node
+      tags: [balance]
+      responses:
+        '200':
+          description: Balance
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Balance' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/credits:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    post:
+      operationId: creditNode
+      summary: Credit a node
+      tags: [balance]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationRequest' }
+      responses:
+        '201':
+          description: Operation created (or replayed)
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            IdempotentReplayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Operation' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id, invalid_amount, amount_must_be_positive, idempotency_key_required, idempotency_key_invalid]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '409': [node_inactive, operations_disabled, balance_overflow]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '422': [amount_exceeds_limit, idempotency_key_reused]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/debits:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    post:
+      operationId: debitNode
+      summary: Debit a node
+      tags: [balance]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationRequest' }
+      responses:
+        '201':
+          description: Operation created (or replayed)
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            IdempotentReplayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Operation' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id, invalid_amount, amount_must_be_positive, idempotency_key_required, idempotency_key_invalid]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '409': [node_inactive, operations_disabled, balance_overflow, insufficient_funds]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '422': [amount_exceeds_limit, idempotency_key_reused]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /transfers:
+    post:
+      operationId: createTransfer
+      summary: Transfer between two nodes
+      tags: [balance]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferRequest' }
+      responses:
+        '201':
+          description: Transfer created (or replayed)
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            IdempotentReplayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transfer' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_amount, amount_must_be_positive, idempotency_key_required, idempotency_key_invalid, same_node]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '409': [node_inactive, operations_disabled, balance_overflow, insufficient_funds]
+        '413': [payload_too_large]
+        '415': [unsupported_media_type]
+        '422': [amount_exceeds_limit, idempotency_key_reused]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /operations:
+    get:
+      operationId: listOperations
+      summary: List operations in the subtree of a scope node
+      tags: [operations]
+      parameters:
+        - $ref: '#/components/parameters/ScopeNodeId'
+        - $ref: '#/components/parameters/NodeIdFilter'
+        - $ref: '#/components/parameters/KindFilter'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of operations
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OperationPage' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_cursor, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /operations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/OperationId'
+    get:
+      operationId: getOperation
+      summary: Get one operation
+      tags: [operations]
+      responses:
+        '200':
+          description: Operation
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Operation' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/reports/summary:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: getSummaryReport
+      summary: Totals and a time series for the subtree
+      tags: [reports]
+      parameters:
+        - $ref: '#/components/parameters/ReportFrom'
+        - $ref: '#/components/parameters/ReportTo'
+        - $ref: '#/components/parameters/Tz'
+        - $ref: '#/components/parameters/Granularity'
+        - $ref: '#/components/parameters/KindFilter'
+      responses:
+        '200':
+          description: Summary
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubtreeSummary' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id, invalid_period]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /nodes/{id}/reports/children:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: getChildrenReport
+      summary: Per-child totals and balances
+      tags: [reports]
+      parameters:
+        - $ref: '#/components/parameters/ReportFrom'
+        - $ref: '#/components/parameters/ReportTo'
+        - $ref: '#/components/parameters/Tz'
+        - $ref: '#/components/parameters/IncludeInactive'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of per-child totals
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChildTotalsPage' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_id, invalid_period, invalid_cursor]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+  /audit:
+    get:
+      operationId: listAudit
+      summary: List audit entries in the subtree of a scope node
+      tags: [audit]
+      parameters:
+        - $ref: '#/components/parameters/ScopeNodeId'
+        - $ref: '#/components/parameters/NodeIdFilter'
+        - $ref: '#/components/parameters/ActionFilter'
+        - $ref: '#/components/parameters/ActorIdFilter'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of audit entries
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditPage' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        '400': [validation_failed, invalid_cursor, invalid_id]
+        '401': [token_missing, token_expired, token_invalid]
+        '403': [forbidden]
+        '404': [not_found]
+        '429': [rate_limited]
+        '500': [internal]
+        '503': [db_unavailable]
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access JWT (Ed25519). Required on every operation except login, health and refresh.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: tb_refresh
+      description: HttpOnly refresh cookie, used by POST /auth/refresh only.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-TB-CSRF
+      description: Must be `1` on requests authenticated by the refresh cookie.
+  headers:
+    XRequestId:
+      description: Request id (echo of a valid incoming X-Request-Id, otherwise generated).
+      schema: { type: string, pattern: '^[A-Za-z0-9-]{8,64}$' }
+    RetryAfter:
+      description: Seconds until the next attempt is allowed.
+      schema: { type: integer, minimum: 0 }
+    SetCookie:
+      description: The tb_refresh cookie (HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth); cleared on logout.
+      schema: { type: string }
+    IdempotentReplayed:
+      description: Present with the value `true` when the response is a replay of an earlier request with the same key.
+      schema: { type: string, enum: ['true'] }
+  parameters:
+    NodeId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OperationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SettingKeyPath:
+      name: key
+      in: path
+      required: true
+      description: One of the `SettingKey` values; an unknown key is answered with 404 `unknown_setting`, so it is not an enum here.
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    NodeIdQuery:
+      name: nodeId
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
+    ScopeNodeId:
+      name: scopeNodeId
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
+    NodeIdFilter:
+      name: nodeId
+      in: query
+      required: false
+      description: Must be inside the subtree of the scope node, otherwise 404.
+      schema: { type: string, format: uuid }
+    ActorIdFilter:
+      name: actorId
+      in: query
+      required: false
+      schema: { type: string, format: uuid }
+    ActionFilter:
+      name: action
+      in: query
+      required: false
+      schema: { $ref: '#/components/schemas/AuditAction' }
+    KindFilter:
+      name: kind
+      in: query
+      required: false
+      description: Repeatable.
+      style: form
+      explode: true
+      schema:
+        type: array
+        items: { $ref: '#/components/schemas/OperationKind' }
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size, 1..200 (outside the range is 400 `validation_failed`).
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor from `nextCursor`.
+      schema: { type: string }
+    StatusFilter:
+      name: status
+      in: query
+      required: false
+      schema: { type: string, enum: [active, inactive, all], default: all }
+    Query:
+      name: q
+      in: query
+      required: false
+      description: Substring of the name (`%` and `_` are literal).
+      schema: { type: string, maxLength: 100 }
+    Inherited:
+      name: inherited
+      in: query
+      required: false
+      schema: { type: boolean, default: false }
+    IncludeInactive:
+      name: includeInactive
+      in: query
+      required: false
+      schema: { type: boolean, default: true }
+    From:
+      name: from
+      in: query
+      required: false
+      schema: { type: string, format: date-time }
+    To:
+      name: to
+      in: query
+      required: false
+      schema: { type: string, format: date-time }
+    ReportFrom:
+      name: from
+      in: query
+      required: true
+      description: Start date, inclusive (`YYYY-MM-DD`, local to `tz`).
+      schema: { type: string, format: date }
+    ReportTo:
+      name: to
+      in: query
+      required: true
+      description: End date, exclusive; the period is at most 366 days.
+      schema: { type: string, format: date }
+    Tz:
+      name: tz
+      in: query
+      required: false
+      description: IANA zone name; empty means the effective `display_timezone` of the node.
+      schema: { type: string, maxLength: 64 }
+    Granularity:
+      name: granularity
+      in: query
+      required: false
+      schema: { type: string, enum: [day, week, month], default: day }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_\-:.]+$' }
+  responses:
+    BadRequest:
+      description: Invalid request
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Authentication failed
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: The object is visible but the right is missing
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: No such object or it is outside the subtree of the actor
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: State conflict
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PayloadTooLarge:
+      description: Body is larger than 64 KiB
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedMediaType:
+      description: Content-Type is not application/json
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnprocessableEntity:
+      description: Well-formed request that breaks a domain rule
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    InternalError:
+      description: Unexpected error
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServiceUnavailable:
+      description: The database is unavailable
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    MoneyAmount:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,18})$'
+      description: Non-negative integer amount in minor units, as a string (at most MaxInt64).
+    ReportSum:
+      type: string
+      pattern: '^-?(0|[1-9][0-9]*)$'
+      description: Signed integer sum in minor units, as a string.
+    Email:
+      type: string
+      format: email
+      minLength: 3
+      maxLength: 254
+    Password:
+      type: string
+      minLength: 12
+      maxLength: 128
+      description: 12..128 bytes (UTF-8).
+    NodeType:
+      type: string
+      enum: [platform, partner, company, unit]
+    NodeStatus:
+      type: string
+      enum: [active, inactive]
+    NodeName:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: 1..100 characters after trimming.
+    Role:
+      type: string
+      enum: [viewer, analyst, admin, owner]
+    Permission:
+      type: string
+      enum:
+        - node.read
+        - settings.read
+        - balance.read
+        - operation.read
+        - report.read
+        - audit.read
+        - member.read
+        - node.create
+        - node.rename
+        - node.move
+        - node.deactivate
+        - settings.write
+        - balance.credit
+        - balance.debit
+        - balance.transfer
+        - member.manage
+        - node.delete
+    OperationKind:
+      type: string
+      enum: [credit, debit, transfer_out, transfer_in]
+    SettingKey:
+      type: string
+      enum: [display_timezone, operations_enabled, max_operation_amount]
+    AuditAction:
+      type: string
+      enum:
+        - node.created
+        - node.renamed
+        - node.moved
+        - node.child_moved_out
+        - node.child_moved_in
+        - node.deactivated
+        - node.activated
+        - node.deleted
+        - member.granted
+        - member.changed
+        - member.revoked
+        - user.created
+        - settings.set
+        - settings.unset
+        - balance.credited
+        - balance.debited
+        - balance.transferred
+        - auth.password_changed
+    AuditTargetType:
+      type: string
+      enum: [node, member, user, setting, balance]
+    ErrorCode:
+      type: string
+      enum:
+        - validation_failed
+        - invalid_id
+        - invalid_amount
+        - amount_must_be_positive
+        - invalid_cursor
+        - invalid_period
+        - same_node
+        - idempotency_key_required
+        - idempotency_key_invalid
+        - invalid_credentials
+        - token_missing
+        - token_expired
+        - token_invalid
+        - refresh_invalid
+        - forbidden
+        - not_found
+        - name_taken
+        - node_inactive
+        - operations_disabled
+        - insufficient_funds
+        - balance_overflow
+        - node_has_children
+        - node_has_balance
+        - node_has_history
+        - children_limit
+        - last_root_owner
+        - user_inactive
+        - invalid_parent_type
+        - move_cycle
+        - root_immutable
+        - role_not_grantable
+        - unknown_setting
+        - invalid_setting_value
+        - amount_exceeds_limit
+        - idempotency_key_reused
+        - payload_too_large
+        - unsupported_media_type
+        - rate_limited
+        - db_unavailable
+        - internal
+        - invalid_password
+        - invalid_node_type
+        - invalid_name
+        - invalid_email
+        - invalid_role
+    FieldError:
+      type: object
+      required: [field, code, message]
+      properties:
+        field: { type: string }
+        code: { $ref: '#/components/schemas/ErrorCode' }
+        message: { type: string }
+    Problem:
+      type: object
+      description: RFC 9457 problem details. `errors` is present only on 400/422 with field errors.
+      required: [type, title, status, code, requestId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, minimum: 100, maximum: 599 }
+        code: { $ref: '#/components/schemas/ErrorCode' }
+        detail: { type: string }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/FieldError' }
+        requestId: { type: string }
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok, unavailable] }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { $ref: '#/components/schemas/Email' }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, minLength: 1, maxLength: 128 }
+        newPassword: { $ref: '#/components/schemas/Password' }
+    UserRef:
+      type: object
+      required: [id, email]
+      properties:
+        id: { type: string, format: uuid }
+        email: { $ref: '#/components/schemas/Email' }
+    TokenResponse:
+      type: object
+      required: [accessToken, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        expiresIn: { type: integer, minimum: 1, description: Lifetime in seconds. }
+        user: { $ref: '#/components/schemas/UserRef' }
+    AccessRoot:
+      type: object
+      required: [nodeId, name, type, role]
+      properties:
+        nodeId: { type: string, format: uuid }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/NodeType' }
+        role: { $ref: '#/components/schemas/Role' }
+    Me:
+      type: object
+      required: [id, email, accessRoots]
+      properties:
+        id: { type: string, format: uuid }
+        email: { $ref: '#/components/schemas/Email' }
+        accessRoots:
+          type: array
+          items: { $ref: '#/components/schemas/AccessRoot' }
+    NodePermissions:
+      type: object
+      required: [nodeId, role, permissions]
+      properties:
+        nodeId: { type: string, format: uuid }
+        role: { $ref: '#/components/schemas/Role' }
+        permissions:
+          type: array
+          items: { $ref: '#/components/schemas/Permission' }
+    Breadcrumb:
+      type: object
+      required: [id, name, type]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/NodeType' }
+    Node:
+      type: object
+      required: [id, type, parentId, name, status, effectiveActive, childrenCount, breadcrumbs, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/NodeType' }
+        parentId: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/NodeStatus' }
+        effectiveActive: { type: boolean }
+        childrenCount: { type: integer, minimum: 0, maximum: 1000 }
+        breadcrumbs:
+          type: array
+          description: Starts at the access root of the actor; ancestors outside the subtree are not revealed.
+          items: { $ref: '#/components/schemas/Breadcrumb' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    NodeSummary:
+      type: object
+      required: [id, type, name, status, childrenCount]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/NodeType' }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/NodeStatus' }
+        childrenCount: { type: integer, minimum: 0, maximum: 1000 }
+    NodeSummaryPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/NodeSummary' }
+        nextCursor: { type: string, nullable: true }
+    CreateNodeRequest:
+      type: object
+      additionalProperties: false
+      required: [type, name]
+      properties:
+        type: { $ref: '#/components/schemas/NodeType' }
+        name: { $ref: '#/components/schemas/NodeName' }
+    RenameNodeRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { $ref: '#/components/schemas/NodeName' }
+    MoveNodeRequest:
+      type: object
+      additionalProperties: false
+      required: [newParentId]
+      properties:
+        newParentId: { type: string, format: uuid }
+    SettingValue:
+      description: |
+        Type depends on the key: `display_timezone` is an IANA zone string, `operations_enabled`
+        is a boolean, `max_operation_amount` is a MoneyAmount string.
+      oneOf:
+        - type: string
+        - type: boolean
+    SettingItem:
+      type: object
+      required: [key, own, effective, sourceNodeId]
+      properties:
+        key: { $ref: '#/components/schemas/SettingKey' }
+        own:
+          nullable: true
+          description: Value set on this node, or null when inherited.
+          oneOf:
+            - type: string
+            - type: boolean
+        effective: { $ref: '#/components/schemas/SettingValue' }
+        sourceNodeId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Node that provides the effective value; null for the built-in default.
+    SettingList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SettingItem' }
+    PutSettingRequest:
+      type: object
+      additionalProperties: false
+      required: [value]
+      properties:
+        value: { $ref: '#/components/schemas/SettingValue' }
+    Member:
+      type: object
+      required: [userId, email, role, nodeId, inheritedFrom, grantedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { $ref: '#/components/schemas/Email' }
+        role: { $ref: '#/components/schemas/Role' }
+        nodeId: { type: string, format: uuid }
+        inheritedFrom: { type: string, format: uuid, nullable: true }
+        grantedAt: { type: string, format: date-time }
+    MemberPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Member' }
+        nextCursor: { type: string, nullable: true }
+    AddMemberRequest:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email: { $ref: '#/components/schemas/Email' }
+        role: { $ref: '#/components/schemas/Role' }
+        initialPassword: { $ref: '#/components/schemas/Password' }
+    ChangeRoleRequest:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+    Balance:
+      type: object
+      required: [nodeId, amount, currency, updatedAt]
+      properties:
+        nodeId: { type: string, format: uuid }
+        amount: { $ref: '#/components/schemas/MoneyAmount' }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        updatedAt: { type: string, format: date-time }
+    OperationRequest:
+      type: object
+      additionalProperties: false
+      required: [amount]
+      properties:
+        amount: { $ref: '#/components/schemas/MoneyAmount' }
+        comment: { type: string, maxLength: 200 }
+    TransferRequest:
+      type: object
+      additionalProperties: false
+      required: [fromNodeId, toNodeId, amount]
+      properties:
+        fromNodeId: { type: string, format: uuid }
+        toNodeId: { type: string, format: uuid }
+        amount: { $ref: '#/components/schemas/MoneyAmount' }
+        comment: { type: string, maxLength: 200 }
+    Operation:
+      type: object
+      required: [id, nodeId, kind, amount, balanceAfter, transferId, counterpartyNodeId, comment, actorId, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        nodeId: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/OperationKind' }
+        amount: { $ref: '#/components/schemas/MoneyAmount' }
+        balanceAfter: { $ref: '#/components/schemas/MoneyAmount' }
+        transferId: { type: string, format: uuid, nullable: true }
+        counterpartyNodeId: { type: string, format: uuid, nullable: true }
+        comment: { type: string, maxLength: 200, nullable: true }
+        actorId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+    OperationListItem:
+      description: Operation with the name of its node.
+      allOf:
+        - $ref: '#/components/schemas/Operation'
+        - type: object
+          required: [nodeName]
+          properties:
+            nodeName: { type: string }
+    OperationPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OperationListItem' }
+        nextCursor: { type: string, nullable: true }
+    Transfer:
+      type: object
+      required: [transferId, out, in]
+      properties:
+        transferId: { type: string, format: uuid }
+        out: { $ref: '#/components/schemas/Operation' }
+        in: { $ref: '#/components/schemas/Operation' }
+    Totals:
+      type: object
+      required: [count, credits, debits, net]
+      properties:
+        count: { type: integer, format: int64, minimum: 0 }
+        credits: { $ref: '#/components/schemas/ReportSum' }
+        debits: { $ref: '#/components/schemas/ReportSum' }
+        net: { $ref: '#/components/schemas/ReportSum' }
+    PeriodTotals:
+      allOf:
+        - $ref: '#/components/schemas/Totals'
+        - type: object
+          required: [periodStart]
+          properties:
+            periodStart: { type: string, format: date, description: Local start date of the period. }
+    SubtreeSummary:
+      type: object
+      required: [scopeNodeId, tz, totals, series]
+      properties:
+        scopeNodeId: { type: string, format: uuid }
+        tz: { type: string }
+        totals: { $ref: '#/components/schemas/Totals' }
+        series:
+          type: array
+          items: { $ref: '#/components/schemas/PeriodTotals' }
+    ChildTotals:
+      allOf:
+        - $ref: '#/components/schemas/Totals'
+        - type: object
+          required: [nodeId, name, type, active, balance]
+          properties:
+            nodeId: { type: string, format: uuid }
+            name: { type: string }
+            type: { $ref: '#/components/schemas/NodeType' }
+            active: { type: boolean }
+            balance: { $ref: '#/components/schemas/ReportSum' }
+    ChildTotalsPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ChildTotals' }
+        nextCursor: { type: string, nullable: true }
+    AuditEntry:
+      type: object
+      required: [id, occurredAt, actorId, actorEmail, nodeId, nodeName, action, targetType, targetId, before, after, requestId]
+      properties:
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        actorId: { type: string, format: uuid }
+        actorEmail:
+          type: string
+          nullable: true
+          description: Null when the actor is not visible to the requester.
+        nodeId: { type: string, format: uuid }
+        nodeName: { type: string }
+        action: { $ref: '#/components/schemas/AuditAction' }
+        targetType: { $ref: '#/components/schemas/AuditTargetType' }
+        targetId: { type: string }
+        before:
+          type: object
+          nullable: true
+          additionalProperties: { type: string }
+        after:
+          type: object
+          nullable: true
+          additionalProperties: { type: string }
+        requestId: { type: string }
+    AuditPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AuditEntry' }
+        nextCursor: { type: string, nullable: true }
+

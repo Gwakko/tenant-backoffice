@@ -51,8 +51,22 @@ keys:
 	test -f keys/cursor.env || echo "TB_CURSOR_KEY=$$(openssl rand -base64 32)" > keys/cursor.env
 
 # Targets below stay stubs (fail loudly) until the milestone that owns them.
-seed gen gen-check test-api lint-web typecheck build:
+seed test-api lint-web typecheck build:
 	@echo "$@: not implemented yet"; exit 1
+
+# Generates Go DTOs and the strict server interface from api/openapi.yaml (oapi-codegen, version pinned
+# by the `tool` directive in backend/go.mod).
+GEN_DIR := internal/adapter/httpapi/gen
+
+gen:
+	cd backend && $(GO) go generate ./$(GEN_DIR)/...
+
+# T-CI-03: regenerates into a scratch file and fails when the committed api.gen.go differs.
+gen-check:
+	cd backend && trap 'rm -f gen.check.tmp' EXIT; \
+		$(GO) go tool oapi-codegen -config $(GEN_DIR)/config.yaml -o gen.check.tmp ../api/openapi.yaml && \
+		{ diff -u $(GEN_DIR)/api.gen.go gen.check.tmp || { echo "gen-check: api.gen.go is stale, run make gen"; exit 1; }; } && \
+		echo "gen-check: ok"
 
 # Applies migrations to the application database as tb_owner (TB_DB_MIGRATE_URL).
 migrate:
@@ -111,8 +125,8 @@ ci: .env
 ci-inner: ci-go ci-web
 
 # Goal list per spec 08 section 5: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso test-api ec-check.
-# gen-check (M2.x) and test-api (M4.x) are still stubs; ec-check (M1.7, soft) stays out of ci-go until M6.3 makes it strict; they are added as they land.
-ci-go: lint-go check-hosts test-unit migrate-roundtrip test-int test-iso
+# test-api (M4.x) is still a stub; ec-check (M1.7, soft) stays out of ci-go until M6.3 makes it strict; they are added as they land.
+ci-go: gen-check lint-go check-hosts test-unit migrate-roundtrip test-int test-iso
 
 # Goal list per spec: npm ci typecheck lint-web test-web build. Only test-web exists until the web client (M5.x).
 ci-web: test-web

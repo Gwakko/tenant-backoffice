@@ -1,0 +1,9 @@
+# oapi-codegen configuration. Output is deterministic: the tool version is pinned by the
+# `tool` directive in backend/go.mod. Regenerate with `make gen`.
+package: gen
+generate:
+  std-http-server: true
+  strict-server: true
+  models: true
+output-options:
+  skip-prune: true

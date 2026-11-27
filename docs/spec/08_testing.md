@@ -279,7 +279,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 |---|---|---|---|
 | T-CI-01 | `cmd/migrate/roundtrip_test.go` (`integration`) + `make migrate-roundtrip` | up -> down-to 0 -> up на новой БД, после down нет объектов (запрос к `pg_class` по схеме `public`, кроме `goose_db_version`), seed после повторного up | EC-126 |
 | T-CI-02 | `cmd/migrate/failing_test.go` с каталогом `testdata/failing/` | версия не изменилась, таблица из первого оператора не создана | EC-127 |
-| T-CI-03 | `make gen-check` + `internal/adapter/httpapi/openapi_test.go TestOpenAPIValid` (kin-openapi) | | EC-128 |
+| T-CI-03 | `make gen-check` + `internal/adapter/httpapi/openapi_test.go` (`TestOpenAPIValid`, `TestEveryEndpointDocumented`, `TestErrorCodeEnum`, `TestErrorResponses`, `TestSecurityOfOperations`, `TestIdempotencyKeyHeader`, `TestMoneyIsStringWithPattern`, `TestFormats`, `TestPagination`, `TestDomainEnumsMatch`) | валидность OpenAPI 3.0.3, все эндпоинты `03` есть и нет лишних, коды ошибок и статусы по таблице `03` §2.3, публично только login, healthz, readyz (refresh: cookie и CSRF), деньги только строки с pattern, enum и границы совпадают с доменом | EC-128 |
 | T-CI-04 | `make check-hosts`: `grep -rnE "localhost:[0-9]+|127\.0\.0\.1" backend --include=*_test.go web/e2e web/src` пусто + `testkit` `TestRequiresAdminURL` | EC-129 |
 | T-CI-05 | `tools/eccheck/main_test.go` на фикстурах (EC без T, T без теста, нормальный случай) | EC-133 |
 | T-CI-06 | `internal/testkit/db_test.go TestParallelDatabases` | две БД из шаблона параллельно, данные не пересекаются, удалены после теста | EC-134 |

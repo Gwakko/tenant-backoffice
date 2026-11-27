@@ -48,6 +48,11 @@
 | `invalid_cursor` | 400 | курсор повреждён, подделан или от других фильтров/scope |
 | `invalid_period` | 400 | `from >= to`, период > 366 дней, неизвестная `granularity`, невалидный `tz` |
 | `same_node` | 400 | перевод на тот же узел |
+| `invalid_password` | 400 | пароль не соответствует правилам (длина, UTF-8) |
+| `invalid_node_type` | 400 | недопустимый тип узла или тип родителя |
+| `invalid_name` | 400 | имя узла не проходит нормализацию и проверки длины |
+| `invalid_email` | 400 | email не проходит проверку формата |
+| `invalid_role` | 400 | неизвестная роль |
 | `idempotency_key_required` | 400 | нет `Idempotency-Key` у операции баланса |
 | `idempotency_key_invalid` | 400 | длина вне 1..128 или символы вне `[A-Za-z0-9_\-:.]` |
 | `invalid_credentials` | 401 | логин не удался |

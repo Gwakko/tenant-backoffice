@@ -185,6 +185,7 @@ M6.1 (после M4.*, M5.*) -> M6.2 ; M6.3 (после всех тестовы�
 - **На выходе:** `api/openapi.yaml`, `backend/internal/adapter/httpapi/gen/{config.yaml,gen.go,api.gen.go}`, `backend/internal/adapter/httpapi/openapi_test.go`.
 - **Критерии приёмки:** все эндпоинты и коды ошибок `03` описаны; деньги — строки с pattern; `Problem` схема.
 - **Проверка:** `make gen && make gen-check && cd backend && go test ./internal/adapter/httpapi/...`.
+- **Примечание:** `gen-check` входит в `ci-go` (CI падает, если сгенерированный код не совпадает с `api/openapi.yaml`).
 
 ### M4.2 HTTP-каркас и middleware
 - **Цель:** сервер strict-handler, middleware: request id, recover, slog access-лог, body limit, Content-Type, authn, rate limit; ошибки problem+json; курсор (HMAC); хэш идемпотентности.
