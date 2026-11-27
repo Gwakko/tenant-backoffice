@@ -12,10 +12,13 @@ import (
 	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/httpapi/gen"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/postgres"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/config"
+	auditdomain "github.com/Gwakko/tenant-backoffice/backend/internal/usecase/audit"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/auth"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/balance"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/member"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/port"
+	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/report"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/settings"
 )
 
@@ -33,6 +36,8 @@ func (UUIDv7) New() uuid.UUID { return uuid.Must(uuid.NewV7()) }
 type Handlers struct {
 	httpapi.Unimplemented
 	*httpapi.CoreHandlers
+	*httpapi.LedgerHandlers
+	*httpapi.ReportHandlers
 }
 
 // Wiring is what the HTTP server needs from the database-backed layer.
@@ -82,11 +87,44 @@ func Wire(cfg config.Config, pool *pgxpool.Pool, log *slog.Logger, clock port.Cl
 	if err != nil {
 		return nil, err
 	}
+	bd := balance.Deps{
+		Runner: runner, Checker: checker, Nodes: nd.Nodes, Balances: postgres.NewBalanceRepo(log),
+		Ops: postgres.NewOperationRepo(log), Keys: postgres.NewIdempotencyRepo(log),
+		Limits: postgres.NewLimitReader(log), Audit: audit, Clock: clock, IDs: ids,
+	}
+	ud := auditdomain.Deps{Runner: runner, Checker: checker, Nodes: nd.Nodes, Audit: postgres.NewAuditRepo(log)}
+	ledger, err := ledgerHandlers(cfg, log, cursors, bd, ud)
+	if err != nil {
+		return nil, err
+	}
+	rd := report.Deps{Runner: runner, Checker: checker, Reports: postgres.NewReportRepo(log)}
+	reports, err := httpapi.NewReportHandlers(httpapi.ReportDeps{
+		Cursors: cursors, Summary: report.NewSubtreeSummary(rd), Children: report.NewChildrenBreakdown(rd),
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &Wiring{
 		Authenticator: authenticate,
-		Handlers:      Handlers{CoreHandlers: core},
-		Implemented:   httpapi.MergeOperations(httpapi.CoreOperations()),
+		Handlers:      Handlers{CoreHandlers: core, LedgerHandlers: ledger, ReportHandlers: reports},
+		Implemented: httpapi.MergeOperations(
+			httpapi.CoreOperations(), httpapi.LedgerOperations(), httpapi.ReportOperations()),
 	}, nil
+}
+
+func ledgerHandlers(cfg config.Config, log *slog.Logger, cursors *httpapi.CursorCodec,
+	bd balance.Deps, ud auditdomain.Deps,
+) (*httpapi.LedgerHandlers, error) {
+	currency := cfg.Currency
+	if currency == "" {
+		currency = config.DefaultCurrency
+	}
+	return httpapi.NewLedgerHandlers(httpapi.LedgerDeps{
+		Log: log, Cursors: cursors, Currency: currency,
+		GetBalance: balance.NewGetBalance(bd), Credit: balance.NewCredit(bd), Debit: balance.NewDebit(bd),
+		Transfer: balance.NewTransfer(bd), ListOperations: balance.NewListOperations(bd), GetOperation: balance.NewGetOperation(bd),
+		ListAudit: auditdomain.NewListAudit(ud),
+	})
 }
 
 func coreHandlers(cfg config.Config, log *slog.Logger, clock port.Clock, cursors *httpapi.CursorCodec,

@@ -157,7 +157,7 @@ func (w *world) auditCases() *auditCases {
 		node: &nd, create: un.NewCreateNode(nd), rename: un.NewRenameNode(nd), move: un.NewMoveNode(nd),
 		del: un.NewDeleteNode(nd), deact: un.NewDeactivateNode(nd), act: un.NewActivateNode(nd),
 		add: um.NewAddMember(md), change: um.NewChangeMemberRole(md), remove: um.NewRemoveMember(md),
-		list: ua.NewListAudit(ua.Deps{Runner: w.runner, Checker: w.checker, Audit: postgres.NewAuditRepo(log)}),
+		list: ua.NewListAudit(ua.Deps{Runner: w.runner, Checker: w.checker, Nodes: w.repo, Audit: postgres.NewAuditRepo(log)}),
 	}
 }
 
@@ -545,8 +545,12 @@ func TestListAuditReal(t *testing.T) {
 	// Scope: a subtree only; the right on the scope node; branches stay apart.
 	assert.Len(t, page("adminA", func(in *ua.ListAuditInput) { in.ScopeNodeID = w.id("A"); in.Limit = 50 }).Items, 8)
 	assert.Len(t, page("adminA", func(in *ua.ListAuditInput) { in.ScopeNodeID = w.id("A1"); in.Limit = 50 }).Items, 7)
-	assert.Empty(t, page("adminA", func(in *ua.ListAuditInput) { in.ScopeNodeID = w.id("A"); in.NodeID = ptr(w.id("B1")); in.Limit = 50 }).Items,
-		"a node outside the scope matches nothing")
+	_, outside := c.list.Execute(ctx, ua.ListAuditInput{
+		Actor: w.users["adminA"], ScopeNodeID: w.id("A"), NodeID: ptr(w.id("B1")), Limit: 50,
+	})
+	require.Error(t, outside, "a node outside the scope is not found (EC-52)")
+	code, _ := apperr.CodeOf(outside)
+	assert.Equal(t, apperr.NotFound, code)
 	_, err := c.list.Execute(ctx, ua.ListAuditInput{Actor: w.users["adminA"], ScopeNodeID: w.id("B"), Limit: 5})
 	requireApp(t, err, apperr.NotFound)
 	_, err = c.list.Execute(ctx, ua.ListAuditInput{Actor: w.users["adminA"], ScopeNodeID: w.id("root"), Limit: 5})

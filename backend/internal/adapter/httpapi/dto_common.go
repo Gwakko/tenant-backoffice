@@ -5,6 +5,7 @@ import (
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/httpapi/gen"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/apperr"
+	dbalance "github.com/Gwakko/tenant-backoffice/backend/internal/domain/balance"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/domain/user"
 	"github.com/Gwakko/tenant-backoffice/backend/internal/usecase/auth"
@@ -60,3 +61,5 @@ func nodeID(id uuid.UUID) dnode.ID { return dnode.ID(id) }
 func userID(id uuid.UUID) user.ID  { return user.ID(id) }
 
 func authProfileInput(a user.ActorID) auth.GetProfileInput { return auth.GetProfileInput{Actor: a} }
+
+func operationID(id uuid.UUID) dbalance.OperationID { return dbalance.OperationID(id) }

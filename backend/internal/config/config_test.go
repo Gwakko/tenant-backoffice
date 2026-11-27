@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Gwakko/tenant-backoffice/backend/internal/config"
@@ -109,4 +110,23 @@ func TestLoadRejectsBadHTTPAndRateSettings(t *testing.T) {
 	t.Setenv("TB_RATE_MUTATION_PER_MIN", "0")
 	_, err = config.Load()
 	require.ErrorContains(t, err, "TB_RATE_MUTATION_PER_MIN")
+}
+
+func TestLoadCurrency(t *testing.T) {
+	t.Setenv("TB_HTTP_ADDR", ":0")
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "EUR", cfg.Currency)
+
+	t.Setenv("TB_CURRENCY", "USD")
+	cfg, err = config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "USD", cfg.Currency)
+
+	for _, bad := range []string{"usd", "US", "EURO", "E1R", " EU"} {
+		t.Setenv("TB_CURRENCY", bad)
+		_, err = config.Load()
+		require.Error(t, err, bad)
+		assert.Contains(t, err.Error(), "TB_CURRENCY", bad)
+	}
 }

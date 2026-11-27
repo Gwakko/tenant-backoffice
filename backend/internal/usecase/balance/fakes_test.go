@@ -1,8 +1,11 @@
 package balance_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"slices"
+	"sort"
 	"testing"
 	"time"
 
@@ -30,7 +33,8 @@ type store struct {
 	balances map[dnode.ID]dbalance.Balance
 	ops      []dbalance.Operation
 	keys     map[string]port.IdempotencyRecord
-	locks    []dnode.ID // order of LockForUpdate calls
+	nodes    map[dnode.ID]dnode.Node // set by the world; ops are listed by path
+	locks    []dnode.ID              // order of LockForUpdate calls
 	saves    int
 }
 
@@ -39,7 +43,7 @@ func newStore() *store {
 }
 
 func (s *store) clone() *store {
-	c := &store{balances: map[dnode.ID]dbalance.Balance{}, keys: map[string]port.IdempotencyRecord{}, saves: s.saves}
+	c := &store{balances: map[dnode.ID]dbalance.Balance{}, keys: map[string]port.IdempotencyRecord{}, saves: s.saves, nodes: s.nodes}
 	for k, v := range s.balances {
 		c.balances[k] = v
 	}
@@ -84,6 +88,14 @@ func (r *fakeNodes) Get(_ context.Context, _ port.Tx, id dnode.ID) (dnode.Node, 
 		}
 	}
 	return n, nil
+}
+
+func (r *fakeNodes) IsInSubtree(_ context.Context, _ port.Tx, id, ancestor dnode.ID) (bool, error) {
+	n, ok := r.nodes[id]
+	if !ok {
+		return false, apperr.NotFoundError("node")
+	}
+	return slices.Contains(n.Path, ancestor), nil
 }
 
 type fakeChecker struct {
@@ -159,6 +171,44 @@ func (r fakeOps) GetTransfer(_ context.Context, _ port.Tx, id dbalance.TransferI
 		return dbalance.Operation{}, dbalance.Operation{}, apperr.NotFoundError("operation")
 	}
 	return *out, *in, nil
+}
+
+func (r fakeOps) List(_ context.Context, _ port.Tx, f port.OperationFilter, after *port.OperationCursor, limit int) ([]port.OperationRecord, error) {
+	var all []port.OperationRecord
+	for _, op := range r.s.ops {
+		n, ok := r.s.nodes[op.NodeID]
+		if !ok || !slices.Contains(n.Path, f.ScopeNodeID) {
+			continue
+		}
+		if f.NodeID != nil && op.NodeID != *f.NodeID {
+			continue
+		}
+		if len(f.Kinds) > 0 && !slices.Contains(f.Kinds, op.Kind) {
+			continue
+		}
+		if f.From != nil && op.CreatedAt.Before(*f.From) || f.To != nil && !op.CreatedAt.Before(*f.To) {
+			continue
+		}
+		all = append(all, port.OperationRecord{Operation: op, NodeName: n.Name.String()})
+	}
+	sort.Slice(all, func(i, j int) bool {
+		a, b := all[i].Operation, all[j].Operation
+		if !a.CreatedAt.Equal(b.CreatedAt) {
+			return a.CreatedAt.After(b.CreatedAt)
+		}
+		return bytes.Compare(a.ID[:], b.ID[:]) > 0
+	})
+	if after != nil {
+		var rest []port.OperationRecord
+		for _, r := range all {
+			o := r.Operation
+			if o.CreatedAt.Before(after.CreatedAt) || o.CreatedAt.Equal(after.CreatedAt) && bytes.Compare(o.ID[:], after.ID[:]) < 0 {
+				rest = append(rest, r)
+			}
+		}
+		all = rest
+	}
+	return all[:min(limit, len(all))], nil
 }
 
 type fakeKeys struct{ s *store }
@@ -274,6 +324,7 @@ func (w *world) add(key string, typ dnode.Type, parent string) {
 	}
 	w.byKey[key] = n
 	w.nodes.nodes[id] = n
+	w.s.nodes = w.nodes.nodes
 }
 
 func (w *world) grant(who, where string, r role.Role) {

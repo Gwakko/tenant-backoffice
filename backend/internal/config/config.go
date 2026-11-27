@@ -19,10 +19,13 @@ type Config struct {
 	HTTPAddr  string `env:"TB_HTTP_ADDR,required,notEmpty"`
 	LogLevel  string `env:"TB_LOG_LEVEL" envDefault:"info"`
 	LogFormat string `env:"TB_LOG_FORMAT" envDefault:"json"`
-	DB        Database
-	Auth      Auth
-	HTTP      HTTP
-	Rate      RateLimit
+	// Currency is the ISO 4217 code of the installation. It is shown with
+	// balances; amounts are stored without a currency (spec 01 section 3).
+	Currency string `env:"TB_CURRENCY" envDefault:"EUR"`
+	DB       Database
+	Auth     Auth
+	HTTP     HTTP
+	Rate     RateLimit
 }
 
 // HTTP holds the transport settings. Defaults are the safe ones: the client
@@ -168,8 +171,27 @@ func Load() (Config, error) {
 	if err := cfg.validateHTTP(); err != nil {
 		return Config{}, err
 	}
+	if !validCurrency(cfg.Currency) {
+		return Config{}, fmt.Errorf("load config: TB_CURRENCY must be three upper-case letters, got %q", cfg.Currency)
+	}
 	return cfg, nil
 }
+
+func validCurrency(s string) bool {
+	if len(s) != 3 {
+		return false
+	}
+	for _, r := range s {
+		if r < 'A' || r > 'Z' {
+			return false
+		}
+	}
+	return true
+}
+
+// DefaultCurrency is used when the config is built without TB_CURRENCY (tests
+// that fill the struct by hand).
+const DefaultCurrency = "EUR"
 
 // SlogLevel converts LogLevel to a slog level.
 func (c Config) SlogLevel() (slog.Level, error) {

@@ -2,6 +2,9 @@ package balance
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
 
 	dbalance "github.com/Gwakko/tenant-backoffice/backend/internal/domain/balance"
 	dnode "github.com/Gwakko/tenant-backoffice/backend/internal/domain/node"
@@ -96,7 +99,8 @@ func operate(ctx context.Context, d Deps, in OperateInput, kind dbalance.Kind, p
 		}
 		// The stamp is taken under the row lock, so the order of created_at on
 		// one node is the order of balance changes.
-		now := d.Clock.Now()
+		// The database keeps microseconds; the answer must equal what a replay reads back.
+		now := d.Clock.Now().Truncate(time.Microsecond)
 		next, err := bal.Apply(kind, req.amount, now)
 		if err != nil {
 			return err
@@ -116,7 +120,7 @@ func operate(ctx context.Context, d Deps, in OperateInput, kind dbalance.Kind, p
 			action = "balance.debited"
 		}
 		if err := d.Audit.Write(ctx, tx, port.AuditEntry{
-			Action: action, NodeID: in.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+			Action: action, NodeID: in.NodeID, TargetID: uuid.UUID(in.NodeID), ActorID: in.Actor, RequestID: in.RequestID,
 			After: map[string]string{
 				"operation_id":  opUUID(opID).String(),
 				"amount":        req.amount.String(),

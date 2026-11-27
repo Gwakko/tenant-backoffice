@@ -27,6 +27,7 @@ const maxLimit = 200
 type Deps struct {
 	Runner  port.TxRunner
 	Checker authz.Checker
+	Nodes   port.NodeRepo
 	Audit   port.AuditRepo
 }
 
@@ -34,7 +35,8 @@ type Deps struct {
 type ListAuditInput struct {
 	Actor       user.ActorID
 	ScopeNodeID dnode.ID
-	// Optional filters. NodeID outside the scope simply matches nothing.
+	// Optional filters. NodeID must lie in the subtree of the scope, otherwise
+	// the answer is not_found (EC-52).
 	NodeID  *dnode.ID
 	Action  *string
 	ActorID *user.ID
@@ -94,6 +96,15 @@ func (uc *ListAudit) Execute(ctx context.Context, in ListAuditInput) (ListAuditO
 	err := d.Runner.InTx(ctx, in.Actor, port.TxOptions{ReadOnly: true}, func(ctx context.Context, tx port.Tx) error {
 		if _, err := authz.Require(ctx, d.Checker, tx, in.Actor, in.ScopeNodeID, role.AuditRead); err != nil {
 			return err
+		}
+		if in.NodeID != nil {
+			inside, err := d.Nodes.IsInSubtree(ctx, tx, *in.NodeID, in.ScopeNodeID)
+			if err != nil {
+				return err
+			}
+			if !inside {
+				return apperr.NotFoundError("node")
+			}
 		}
 		page, err := d.Audit.List(ctx, tx, f, after, in.Limit+1)
 		if err != nil {

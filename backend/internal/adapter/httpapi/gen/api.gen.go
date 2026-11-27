@@ -998,10 +998,10 @@ type OperationId = openapi_types.UUID
 type Query = string
 
 // ReportFrom defines model for ReportFrom.
-type ReportFrom = openapi_types.Date
+type ReportFrom = string
 
 // ReportTo defines model for ReportTo.
-type ReportTo = openapi_types.Date
+type ReportTo = string
 
 // ScopeNodeId defines model for ScopeNodeId.
 type ScopeNodeId = openapi_types.UUID
@@ -1127,10 +1127,10 @@ type ListMoveTargetsParams struct {
 
 // GetChildrenReportParams defines parameters for GetChildrenReport.
 type GetChildrenReportParams struct {
-	// From Start date, inclusive (`YYYY-MM-DD`, local to `tz`).
+	// From Start date, inclusive (`YYYY-MM-DD`, local to `tz`). A value that is not a real date is 400 `invalid_period`.
 	From ReportFrom `form:"from" json:"from"`
 
-	// To End date, exclusive; the period is at most 366 days.
+	// To End date, exclusive; the period is at most 366 days. A value that is not a real date is 400 `invalid_period`.
 	To ReportTo `form:"to" json:"to"`
 
 	// Tz IANA zone name; empty means the effective `display_timezone` of the node.
@@ -1146,10 +1146,10 @@ type GetChildrenReportParams struct {
 
 // GetSummaryReportParams defines parameters for GetSummaryReport.
 type GetSummaryReportParams struct {
-	// From Start date, inclusive (`YYYY-MM-DD`, local to `tz`).
+	// From Start date, inclusive (`YYYY-MM-DD`, local to `tz`). A value that is not a real date is 400 `invalid_period`.
 	From ReportFrom `form:"from" json:"from"`
 
-	// To End date, exclusive; the period is at most 366 days.
+	// To End date, exclusive; the period is at most 366 days. A value that is not a real date is 400 `invalid_period`.
 	To ReportTo `form:"to" json:"to"`
 
 	// Tz IANA zone name; empty means the effective `display_timezone` of the node.
@@ -2398,7 +2398,7 @@ func (siw *ServerInterfaceWrapper) GetChildrenReport(w http.ResponseWriter, r *h
 
 	// ------------- Required query parameter "from" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
@@ -2411,7 +2411,7 @@ func (siw *ServerInterfaceWrapper) GetChildrenReport(w http.ResponseWriter, r *h
 
 	// ------------- Required query parameter "to" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
@@ -2505,7 +2505,7 @@ func (siw *ServerInterfaceWrapper) GetSummaryReport(w http.ResponseWriter, r *ht
 
 	// ------------- Required query parameter "from" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
@@ -2518,7 +2518,7 @@ func (siw *ServerInterfaceWrapper) GetSummaryReport(w http.ResponseWriter, r *ht
 
 	// ------------- Required query parameter "to" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
@@ -6292,11 +6292,11 @@ func (response CreditNode201JSONResponse) VisitCreditNodeResponse(w http.Respons
 	w.Header().Set("Content-Type", "application/json")
 	if response.Headers.IdempotentReplayed != nil {
 		{
-			v, err := runtime.StyleParamWithOptions("simple", false, "IdempotentReplayed", *response.Headers.IdempotentReplayed, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			v, err := runtime.StyleParamWithOptions("simple", false, "Idempotent-Replayed", *response.Headers.IdempotentReplayed, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
-				return fmt.Errorf("error styling response header IdempotentReplayed: %w", err)
+				return fmt.Errorf("error styling response header Idempotent-Replayed: %w", err)
 			}
-			w.Header().Set("IdempotentReplayed", v)
+			w.Header().Set("Idempotent-Replayed", v)
 		}
 	}
 	if response.Headers.XRequestId != nil {
@@ -6873,11 +6873,11 @@ func (response DebitNode201JSONResponse) VisitDebitNodeResponse(w http.ResponseW
 	w.Header().Set("Content-Type", "application/json")
 	if response.Headers.IdempotentReplayed != nil {
 		{
-			v, err := runtime.StyleParamWithOptions("simple", false, "IdempotentReplayed", *response.Headers.IdempotentReplayed, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			v, err := runtime.StyleParamWithOptions("simple", false, "Idempotent-Replayed", *response.Headers.IdempotentReplayed, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
-				return fmt.Errorf("error styling response header IdempotentReplayed: %w", err)
+				return fmt.Errorf("error styling response header Idempotent-Replayed: %w", err)
 			}
-			w.Header().Set("IdempotentReplayed", v)
+			w.Header().Set("Idempotent-Replayed", v)
 		}
 	}
 	if response.Headers.XRequestId != nil {
@@ -10506,11 +10506,11 @@ func (response CreateTransfer201JSONResponse) VisitCreateTransferResponse(w http
 	w.Header().Set("Content-Type", "application/json")
 	if response.Headers.IdempotentReplayed != nil {
 		{
-			v, err := runtime.StyleParamWithOptions("simple", false, "IdempotentReplayed", *response.Headers.IdempotentReplayed, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			v, err := runtime.StyleParamWithOptions("simple", false, "Idempotent-Replayed", *response.Headers.IdempotentReplayed, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
-				return fmt.Errorf("error styling response header IdempotentReplayed: %w", err)
+				return fmt.Errorf("error styling response header Idempotent-Replayed: %w", err)
 			}
-			w.Header().Set("IdempotentReplayed", v)
+			w.Header().Set("Idempotent-Replayed", v)
 		}
 	}
 	if response.Headers.XRequestId != nil {

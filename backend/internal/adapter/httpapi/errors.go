@@ -201,6 +201,21 @@ func writeProblem(w http.ResponseWriter, r *http.Request, log *slog.Logger, err 
 			slog.String("code", string(res.code)),
 			slog.Any("error", res.cause))
 	}
+	if status := res.spec.status; status >= http.StatusBadRequest && status < http.StatusInternalServerError {
+		// A refused request is logged with its code and request id, never
+		// audited (EC-99). The body of a 404 cannot tell a foreign node from a
+		// missing one; the log states only that.
+		attrs := []slog.Attr{
+			slog.String("request_id", st.requestID),
+			slog.String("route", st.routeOrUnmatched()),
+			slog.String("code", string(res.code)),
+			slog.Int("status", status),
+		}
+		if status == http.StatusNotFound {
+			attrs = append(attrs, slog.String("reason", "missing_or_outside_visible_subtree"))
+		}
+		log.LogAttrs(r.Context(), slog.LevelInfo, "request refused", attrs...)
+	}
 	body := Problem{
 		Type:      problemTypeBase + string(res.code),
 		Title:     res.spec.title,

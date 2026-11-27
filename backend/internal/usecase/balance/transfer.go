@@ -100,7 +100,8 @@ func (uc *Transfer) Execute(ctx context.Context, in TransferInput) (TransferOutp
 			return err
 		}
 		// Stamped under both row locks (see operate).
-		now := d.Clock.Now()
+		// The database keeps microseconds; the answer must equal what a replay reads back.
+		now := d.Clock.Now().Truncate(time.Microsecond)
 		from, to, err := dbalance.Transfer(balances[in.FromNodeID], balances[in.ToNodeID], req.amount, now)
 		if err != nil {
 			return err
@@ -128,7 +129,8 @@ func (uc *Transfer) Execute(ctx context.Context, in TransferInput) (TransferOutp
 		}
 		for _, op := range []dbalance.Operation{opOut, opIn} {
 			if err := d.Audit.Write(ctx, tx, port.AuditEntry{
-				Action: "balance.transferred", NodeID: op.NodeID, ActorID: in.Actor, RequestID: in.RequestID,
+				Action: "balance.transferred", NodeID: op.NodeID, TargetID: uuid.UUID(op.NodeID),
+				ActorID: in.Actor, RequestID: in.RequestID,
 				After: map[string]string{
 					"transfer_id":          uuid.UUID(tid).String(),
 					"operation_id":         opUUID(op.ID).String(),

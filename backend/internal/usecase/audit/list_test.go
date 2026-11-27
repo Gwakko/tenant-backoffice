@@ -64,7 +64,18 @@ func (r *fakeRepo) List(_ context.Context, _ port.Tx, f port.AuditFilter, after 
 	return r.records[start:end], nil
 }
 
+// fakeNodes answers only the subtree question of the nodeId filter.
+type fakeNodes struct {
+	port.NodeRepo
+	inside bool
+}
+
+func (n *fakeNodes) IsInSubtree(context.Context, port.Tx, dnode.ID, dnode.ID) (bool, error) {
+	return n.inside, nil
+}
+
 type env struct {
+	nodes  *fakeNodes
 	uc     *uc.ListAudit
 	repo   *fakeRepo
 	scope  dnode.ID
@@ -75,7 +86,7 @@ type env struct {
 func newEnv(t *testing.T, n int) *env {
 	t.Helper()
 	scope := dnode.ID(uuid.New())
-	e := &env{scope: scope, actors: map[string]user.ActorID{}, txRO: new(bool), repo: &fakeRepo{}}
+	e := &env{scope: scope, actors: map[string]user.ActorID{}, txRO: new(bool), repo: &fakeRepo{}, nodes: &fakeNodes{inside: true}}
 	roles := map[user.ActorID]role.Role{}
 	for name, r := range map[string]role.Role{"viewer": role.Viewer, "analyst": role.Analyst, "admin": role.Admin, "owner": role.Owner} {
 		e.actors[name] = user.ActorID(uuid.New())
@@ -92,7 +103,7 @@ func newEnv(t *testing.T, n int) *env {
 		require.NoError(t, err)
 		e.repo.records = append(e.repo.records, port.AuditRecord{Entry: en, NodeName: "N"})
 	}
-	e.uc = uc.NewListAudit(uc.Deps{Runner: fakeRunner{e.txRO}, Checker: fakeChecker{roles: roles, node: scope}, Audit: e.repo})
+	e.uc = uc.NewListAudit(uc.Deps{Runner: fakeRunner{e.txRO}, Checker: fakeChecker{roles: roles, node: scope}, Nodes: e.nodes, Audit: e.repo})
 	return e
 }
 
@@ -198,4 +209,16 @@ func TestListAuditPaging(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, out.Items, 5)
 	assert.Empty(t, out.NextCursor)
+}
+
+// EC-52: a nodeId outside the subtree of the scope is not_found and the store
+// is not asked.
+func TestListAuditNodeFilterOutsideScope(t *testing.T) {
+	e := newEnv(t, 2)
+	e.nodes.inside = false
+	nid := dnode.ID(uuid.New())
+	calls := e.repo.calls
+	_, err := e.list("owner", func(in *uc.ListAuditInput) { in.NodeID = &nid })
+	requireCode(t, err, apperr.NotFound)
+	assert.Equal(t, calls, e.repo.calls)
 }

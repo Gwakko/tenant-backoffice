@@ -48,6 +48,34 @@ type OperationRepo interface {
 	// GetTransfer returns both legs of a transfer the actor can see. Both legs
 	// must be visible, otherwise apperr.NotFound.
 	GetTransfer(ctx context.Context, tx Tx, id balance.TransferID) (out, in balance.Operation, err error)
+	// List returns the operations of nodes inside the subtree of
+	// f.ScopeNodeID that the actor can see, newest first by
+	// (created_at DESC, id DESC), starting after the cursor. It returns at
+	// most limit records.
+	List(ctx context.Context, tx Tx, f OperationFilter, after *OperationCursor, limit int) ([]OperationRecord, error)
+}
+
+// OperationFilter selects the operations of UC-B5. Only nodes inside the
+// subtree of ScopeNodeID are searched. The filters combine with AND; Kinds
+// combine with OR.
+type OperationFilter struct {
+	ScopeNodeID node.ID
+	NodeID      *node.ID
+	Kinds       []balance.Kind
+	// From is inclusive, To exclusive.
+	From, To *time.Time
+}
+
+// OperationCursor is the keyset position after which the next page starts.
+type OperationCursor struct {
+	CreatedAt time.Time
+	ID        balance.OperationID
+}
+
+// OperationRecord is an operation with the name of its node.
+type OperationRecord struct {
+	Operation balance.Operation
+	NodeName  string
 }
 
 // IdempotencyRecord is a stored idempotency key. Exactly one of OperationID
