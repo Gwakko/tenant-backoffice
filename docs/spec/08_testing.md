@@ -84,6 +84,10 @@
 | T-U-43 | `usecase/member/add_test.go TestAddMemberSameShapeForExistingUser` | форма ответа для нового и существующего пользователя одинакова, пароль существующего не меняется | EC-109 |
 | T-U-44 | `usecase/member/add_test.go TestAddMemberCannotDemoteLastRootOwner` | понижение последнего owner корня через POST members | EC-148 |
 | T-U-45 | `usecase/member/remove_test.go TestRemoveOwnAssignment` | актор снимает своё назначение | EC-42 |
+| T-U-61 | `usecase/balance/transfer_test.go TestTransferLocksInAscendingOrder` | строки балансов блокируются по возрастанию id независимо от направления перевода | EC-79 |
+| T-U-62 | `usecase/balance/transfer_test.go TestTransferAtomicOnFailure` | сбой на любом шаге перевода откатывает обе ноги и ключ | EC-80 |
+| T-U-63 | `usecase/settings/set_test.go TestSetSameValueIsNoop, TestSetDescendantCannotRelax` | повтор значения: 0 записей и 0 аудита; потомок не ослабляет запрет предка | EC-101, EC-140, EC-141 |
+| T-U-64 | `usecase/settings/get_test.go TestGetHidesSourceAboveAccessRoot` | источник выше корня доступа = nil при верном значении | EC-143 |
 
 Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpapi` курсор и хэш) входят в `make test-unit`.
 
@@ -149,6 +153,17 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-I-65 | `adapter/postgres/member_test.go TestMemberRulesOnDatabase` | потолок ролей и 404 вне поддерева на настоящей RLS | EC-33, EC-34 |
 | T-I-66 | `adapter/postgres/member_test.go TestRemoveOwnAssignmentOnDatabase` | после снятия своего назначения узел даёт 404 | EC-42 |
 | T-I-67 | `adapter/postgres/member_test.go TestListMembersOnDatabase` | inherited только по видимым предкам, пагинация | EC-61 |
+| T-I-68 | `adapter/postgres/balance_test.go TestLedgerInvariantAfterMixedOperations` | после серии credit/debit/transfer (в том числе параллельных) для каждого узла balance = Σcredit + Σtransfer_in − Σdebit − Σtransfer_out, цепочка `balance_after` по времени согласована, ноги перевода с общим `transfer_id` и равными суммами | EC-82 |
+| T-I-69 | `adapter/postgres/idempotency_test.go TestReplayAfterAccessLost` | повтор ключа после потери доступа к узлу: 404, операция не изменена | EC-65, EC-50 |
+| T-I-70 | `adapter/postgres/idempotency_test.go TestReplaySameBodyOnDatabase` | повтор с тем же ключом и телом возвращает ту же операцию, новых строк нет | EC-65 |
+| T-I-71 | `adapter/postgres/idempotency_test.go TestReuseDifferentBodyOnDatabase` | тот же ключ с другим телом: конфликт, ничего не записано | EC-66, EC-69 |
+| T-I-72 | `adapter/postgres/balance_test.go TestShortfallIsNotNotFound` | реальная нехватка средств даёт 409 `insufficient_funds`, а не 404 и не уход в минус | EC-74 |
+| T-I-73 | `adapter/postgres/balance_test.go TestLimitsFromHiddenAncestors` | лимит и запрет операций берутся по цепочке, включая невидимых предков | EC-77, EC-81 |
+| T-I-74 | `adapter/postgres/balance_test.go TestTransferAcrossBranchesIsNotFound` | перевод на узел чужой ветки даёт 404, баланс не изменён | EC-50 |
+| T-I-77 | `adapter/postgres/settings_test.go TestSettingsWriteThroughUseCases` | запись настроек через use case: тип JSON по ключу, `updated_by` = актор, no-op, сброс | EC-101, EC-142 |
+| T-I-78 | `adapter/postgres/settings_test.go TestSettingsConcurrentSameValue` | N параллельных установок одного значения дают одну запись и один аудит | EC-152 |
+| T-I-80 | `adapter/postgres/audit_test.go TestAuditWrittenByEveryChange` | все изменяющие use cases узлов и участников пишут запись с верными действием, узлом, целью, before/after; отказы и no-op не пишут; удаление пишет на родителя; снятие своего назначения пишет до DELETE | EC-96, EC-99, EC-101 |
+| T-I-81 | `adapter/postgres/audit_test.go TestListAuditReal` | UC-AU1 на БД: порядок `(occurred_at, id) DESC` без повторов, фильтры, поддерево, ветки раздельно, права | EC-52 |
 
 Сценарные тесты без EC (обязательны, но в `eccheck` не участвуют): T-I-50 `TestRepositoriesRoundTrip` (CRUD каждого репозитория и маппинг row↔entity), дополняется каждой задачей, добавляющей репозиторий или порт БД; на M2.3 сюда же относится `TestTreeLockSerialises` (вторая транзакция ждёт `TreeLock`, пока первая не завершится).
 
