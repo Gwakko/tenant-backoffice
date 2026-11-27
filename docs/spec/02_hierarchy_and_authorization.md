@@ -335,3 +335,12 @@ UUIDv7 содержит время создания и не является с�
 - Rate limit: логин 5 попыток в минуту на пару (IP, email) и 20 на IP; мутации 60 в минуту на пользователя; `golang.org/x/time/rate`, хранилище в памяти процесса с вытеснением неактивных ключей; ответ 429 `rate_limited` + `Retry-After` (EC-108, EC-116). Честно: один экземпляр API.
 
 Схема учебная: нет MFA, восстановления пароля, хранения ключей в KMS. Это пишется в README.
+
+#### Изменения схемы M3.1 (отклонения от первоначальных таблиц политик)
+
+- `balances`: нет `DELETE` для `tb_app` (строка уходит только вместе с узлом); `UPDATE` только колонок `(amount, version, updated_at)`.
+- `operations` и `audit_log`: `INSERT` дополнительно требует `actor_id = tb_actor_id()`; обе таблицы неизменяемы (триггер `tb_raise_immutable`, включая `TRUNCATE`; функция лежит в `0005`).
+- `idempotency_keys`: `SELECT`/`INSERT`/`DELETE` без `UPDATE`, политика `user_id = tb_actor_id() AND cardinality(tb_actor_scopes()) > 0`.
+- `node_settings`: `INSERT`/`UPDATE` требуют `updated_by = tb_actor_id()`.
+- `tb_settings_chain` возвращает `(source_node_id, depth, key, value)`, `source_node_id = NULL` для предков выше корня доступа.
+- Известные ограничения: баланс не связан в БД с суммой операций (согласованность обеспечивает use case в одной транзакции и тест инварианта); записи аудита удалённого узла остаются в БД, но невидимы через RLS (нет внешнего ключа на `nodes`); `counterparty_node_id` может указывать на узел, невидимый читателю после последующего переноса.

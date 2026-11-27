@@ -181,6 +181,10 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-ISO-21 | `rls_writes_test.go TestUserPasswordWritePath`: прямой `UPDATE users SET password_hash` под `tb_app` даёт 42501; `UPDATE` разрешён только на `status`, `token_version`; `tb_set_own_password` меняет хеш только актора и не трогает других (в том числе видимых), без актора ничего не меняет; `SELECT *` по `users` падает; `INSERT` пользователя с начальным хешем работает | | EC-145 |
 | T-ISO-22 | `rls_writes_test.go TestAuthByIDHasNoPasswordHash`: у `tb_auth_user_by_id` нет колонки `password_hash` (`id, status, token_version`), у `tb_auth_user_by_email` она есть | | EC-146 |
 | T-ISO-23 | `layers_test.go TestTwoLayerIsolation` | матрица слоёв: оба слоя; только use case и Checker (пул владельца, RLS не действует); только RLS (репозитории напрямую под `tb_app`) | EC-56 |
+| T-ISO-24 | `ledger_rls_test.go TestLedgerTablesNeedAnActor` | без актора, неизвестный, неактивный и без ролей актор: 0 строк и 42501 на INSERT во всех таблицах M3 | EC-57 |
+| T-ISO-25 | `ledger_rls_test.go TestLedgerTablesCrossBranch` | ветка A против B на `node_settings`, `balances`, `operations`, `idempotency_keys`, `audit_log`: SELECT, UPDATE, DELETE, INSERT с чужим `node_id`, подмена автора, чужой контрагент | EC-50, EC-52, EC-53, EC-150, EC-151 |
+| T-ISO-26 | `ledger_rls_test.go TestIdempotencyKeyScope` | ключ принадлежит пользователю: один текст у двух веток независим, чужой не виден, ключ неизменяем, параллельный дубль ждёт и получает конфликт | EC-67, EC-68 |
+| T-ISO-27 | `ledger_rls_test.go TestSettingsChainFunction` | `tb_settings_chain`: пусто для чужого, отсутствующего и предка выше корня; id предка выше корня доступа = NULL | EC-143 |
 
 ### 3.4 API (T-A)
 

@@ -70,6 +70,7 @@ func visibleIDs(ctx context.Context, t *testing.T, db *testkit.DB, actor, query 
 	return out
 }
 
+// Test-ID: T-ISO-24
 // Proposed id T-ISO-24 (no actor, unknown, inactive or role-less actor).
 func TestLedgerTablesNeedAnActor(t *testing.T) {
 	ctx := context.Background()
@@ -129,6 +130,7 @@ func TestLedgerTablesNeedAnActor(t *testing.T) {
 	}
 }
 
+// Test-ID: T-ISO-25
 // Proposed id T-ISO-25 (branch A against branch B on every new table).
 func TestLedgerTablesCrossBranch(t *testing.T) {
 	ctx := context.Background()
@@ -256,6 +258,7 @@ func TestLedgerTablesCrossBranch(t *testing.T) {
 	})
 }
 
+// Test-ID: T-ISO-26
 // Proposed id T-ISO-26 (idempotency keys are scoped to the acting user).
 func TestIdempotencyKeyScope(t *testing.T) {
 	ctx := context.Background()
@@ -434,6 +437,7 @@ func repeat(s string, n int) string {
 	return string(out)
 }
 
+// Test-ID: T-ISO-27
 // Proposed id T-ISO-27 (tb_settings_chain shows the chain, never a foreign node).
 func TestSettingsChainFunction(t *testing.T) {
 	ctx := context.Background()
