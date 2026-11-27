@@ -120,11 +120,11 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-I-21 | `idempotency_test.go TestFailedAttemptNotStored` | | EC-71 |
 | T-I-22 | `idempotency_test.go TestExpiredKeyReplaced` | | EC-72 |
 | T-I-23 | `balance_concurrency_test.go TestParallelDebitsLowBalance` | | EC-73 |
-| T-I-24 | `balance_concurrency_test.go TestOppositeTransfersNoDeadlock` | | EC-79 |
+| T-I-24 | `balance_concurrency_test.go TestParallelOppositeTransfersNoDeadlock` | | EC-79 |
 | T-I-25 | `balance_test.go TestTransferAtomic` | | EC-80 |
-| T-I-26 | `balance_concurrency_test.go TestLedgerInvariant` | | EC-82 |
+| T-I-26 | `balance_concurrency_test.go TestParallelLedgerInvariant` | | EC-82 |
 | T-I-27 | `connection_loss_test.go TestTerminateBackendMidTransaction` (тестовый хук `TxRunner` `BeforeCommit` вызывает `pg_terminate_backend(pid)` через соединение суперпользователя из `TB_TEST_DB_ADMIN_URL`) | | EC-83 |
-| T-I-28 | `balance_concurrency_test.go TestTransferDuringMove` | | EC-84 |
+| T-I-28 | `balance_concurrency_test.go TestParallelTransferDuringMove` | | EC-84 |
 | T-I-29 | `report_test.go TestReportSnapshotDuringMove` | | EC-85 |
 | T-I-30 | `report_test.go TestInactiveChildInReport` | | EC-86 |
 | T-I-31 | `report_test.go TestEmptyPeriodsZeroFilled` | | EC-87 |
@@ -314,7 +314,7 @@ GitHub Actions (`.github/workflows/ci.yml`):
 1. `make ci` зелёный локально (в контейнерах) и задание `ci` зелёное в GitHub Actions; `make e2e` и задание `e2e` зелёные.
 2. `eccheck` строгий режим: 0 EC без тестов, 0 ссылок на несуществующие T (`11_coverage.md`).
 3. Набор `make test-iso` зелёный; каждый T-ISO проверяет и ответ, и неизменность данных.
-4. Конкурентные тесты стабильны: `for i in $(seq 10); do make test-int GOTESTFLAGS='-run Concurrency|Parallel|Race -count=1' || exit 1; done` без падений (каждый тест внутри уже повторяет сценарий 20 раз).
+4. Конкурентные тесты стабильны: `for i in $(seq 10); do make test-int GOTESTFLAGS="-run 'Concurrency|Parallel|Race' -count=1" || exit 1; done` (кавычки обязательны: символ `|` иначе читается как пайп) без падений (каждый тест внутри уже повторяет сценарий 20 раз).
 5. golangci-lint 0 замечаний без исключений по путям, кроме сгенерированного `gen/`; `//nolint` только с причиной.
 6. `tsc --noEmit` и eslint без ошибок, в `web/src` нет `any` и `eslint-disable`.
 7. README: «pet project, verified locally and in CI, not production», схема слоёв, раздел «What is not here», без цифр производительности.
