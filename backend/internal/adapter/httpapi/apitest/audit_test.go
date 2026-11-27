@@ -26,7 +26,7 @@ func auditIDs(items []gen.AuditEntry) []uuid.UUID {
 	return out
 }
 
-// Proposed ID (not in spec 08 yet): T-A-59
+// Test-ID: T-A-59
 // EC-100: the journal shows before and after of a change, the request id of
 // the request that made it, the display names, and never a secret.
 func TestAPIAuditBeforeAfterWithoutSecrets(t *testing.T) {
@@ -88,7 +88,7 @@ func TestAPIAuditBeforeAfterWithoutSecrets(t *testing.T) {
 	}
 }
 
-// Proposed ID (not in spec 08 yet): T-A-60
+// Test-ID: T-A-60
 // The audit list: filters, strict paging without repeats or gaps, the right
 // needed on the scope, and the cursor bound to its listing (EC-62).
 func TestAPIAuditListFiltersAndCursor(t *testing.T) {

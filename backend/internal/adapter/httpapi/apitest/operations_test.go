@@ -27,7 +27,7 @@ func ids(items []gen.OperationListItem) []uuid.UUID {
 	return out
 }
 
-// Proposed ID (not in spec 08 yet): T-A-54
+// Test-ID: T-A-54
 // The operation list of a scope: its own branch only, newest first, with the
 // node name, filtered by node, kind (repeatable) and period.
 func TestAPIOperationsList(t *testing.T) {
@@ -78,7 +78,7 @@ func TestAPIOperationsList(t *testing.T) {
 	s.Anon.Get(api+"/operations?scopeNodeId="+w.A.String()).RequireProblem(http.StatusUnauthorized, "token_missing")
 }
 
-// Proposed ID (not in spec 08 yet): T-A-55
+// Test-ID: T-A-55
 // EC-92: pages never repeat and never skip an operation, also when many
 // operations share one created_at, and a newer operation that appears between
 // two pages does not enter the walk.
@@ -122,7 +122,7 @@ func TestAPIOperationsPagination(t *testing.T) {
 	assert.Len(t, operationsPage(t, admin, scope+"&limit=200").Items, 4+9+6+1)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-56
+// Test-ID: T-A-56
 // EC-62: a cursor works only for the listing it came from: the same scope,
 // node, kinds, period and reader. Any other listing, a changed or a cut cursor
 // is 400 invalid_cursor.
@@ -207,7 +207,7 @@ func TestAPIOperationsCursorIsStrict(t *testing.T) {
 	}
 }
 
-// Proposed ID (not in spec 08 yet): T-A-57
+// Test-ID: T-A-57
 // One operation by id: the same record as in the list, readable with
 // operation.read on its node; another branch or a node outside the reader's
 // roles is not found, never forbidden.
@@ -242,7 +242,7 @@ func TestAPIGetOperation(t *testing.T) {
 	s.Anon.Get(api+"/operations/"+w.CreditA.String()).RequireProblem(http.StatusUnauthorized, "token_missing")
 }
 
-// Proposed ID (not in spec 08 yet): T-A-58
+// Test-ID: T-A-58
 // EC-52, EC-53, EC-54: for balances, operations and audit, a node, a scope, a
 // node filter or an operation of another branch answers byte for byte like one
 // that does not exist, and no foreign state is touched.
@@ -314,7 +314,7 @@ func TestAPIForeignLedgerIsIndistinguishableFromMissing(t *testing.T) {
 	assert.Equal(t, before, stateOf(t, s), "no foreign state was touched")
 }
 
-// Proposed ID (not in spec 08 yet): T-A-61
+// Test-ID: T-A-61
 // The actor is the authenticated user and nobody else: a body field naming
 // another actor is refused, a query parameter or header naming one is ignored,
 // and the audit filter actorId filters, it does not switch identity.

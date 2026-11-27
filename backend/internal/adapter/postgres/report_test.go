@@ -469,7 +469,7 @@ func TestReportAccess(t *testing.T) {
 	require.ErrorIs(t, err, apperr.NotFoundError(""))
 }
 
-// Proposed ID (not in spec 08 yet): T-I-90, the keyset of the children report is
+// Test-ID: T-I-90, the keyset of the children report is
 // stable under inserts, EC-92 for UC-R2. T-I-35 in spec 08 names the operations
 // list (M4.4); this is the same property for the report.
 func TestReportChildrenKeysetStableUnderInserts(t *testing.T) {

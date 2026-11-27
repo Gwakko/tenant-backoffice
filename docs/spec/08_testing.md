@@ -169,6 +169,7 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-I-78 | `adapter/postgres/settings_test.go TestSettingsConcurrentSameValue` | N параллельных установок одного значения дают одну запись и один аудит | EC-152 |
 | T-I-80 | `adapter/postgres/audit_test.go TestAuditWrittenByEveryChange` | все изменяющие use cases узлов и участников пишут запись с верными действием, узлом, целью, before/after; отказы и no-op не пишут; удаление пишет на родителя; снятие своего назначения пишет до DELETE | EC-96, EC-99, EC-101 |
 | T-I-81 | `adapter/postgres/audit_test.go TestListAuditReal` | UC-AU1 на БД: порядок `(occurred_at, id) DESC` без повторов, фильтры, поддерево, ветки раздельно, права | EC-52 |
+| T-I-90 | `adapter/postgres/report_test.go TestReportChildrenKeysetStableUnderInserts` | пагинация разбивки по детям устойчива при вставках | EC-92 |
 
 Сценарные тесты без EC (обязательны, но в `eccheck` не участвуют): T-I-50 `TestRepositoriesRoundTrip` (CRUD каждого репозитория и маппинг row↔entity), дополняется каждой задачей, добавляющей репозиторий или порт БД; на M2.3 сюда же относится `TestTreeLockSerialises` (вторая транзакция ждёт `TreeLock`, пока первая не завершится).
 
@@ -219,20 +220,20 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-A-05 | `apitest/me_test.go TestAPIAccessRootsMultiBranch` | EC-32 |
 | T-A-06 | `apitest/authz_test.go TestAPIDowngradeAppliesNextRequest` | EC-38 |
 | T-A-07 | `apitest/members_test.go TestAPISelfRevoke` | EC-42 |
-| T-A-08 | `apitest/authz_test.go TestAPIViewerCannotWrite` | EC-43 |
-| T-A-09 | `filters_test.go TestInjectionInQueryParams` | EC-64 |
-| T-A-10 | `idempotency_test.go TestReplaySameBody` | EC-65 |
-| T-A-11 | `idempotency_test.go TestReuseDifferentBody` | EC-66 |
-| T-A-12 | `idempotency_test.go TestKeyMissingOrInvalid` | EC-70 |
-| T-A-13 | `balance_test.go TestAmountFormat` | EC-76 |
-| T-A-14 | `pagination_test.go TestLimitValidation` | EC-94 |
-| T-A-15 | `audit_test.go TestFailuresNotAuditedButLogged` (slog-хендлер теста собирает записи) | EC-99 |
+| T-A-08 | `apitest/authz_test.go TestAPIViewerCannotWrite, apitest/balance_test.go TestAPIViewerCannotMoveMoney` | EC-43 |
+| T-A-09 | `apitest/filters_test.go TestAPIInjectionInQueryParams` | EC-64 |
+| T-A-10 | `apitest/idempotency_test.go TestAPIReplaySameBody` | EC-65 |
+| T-A-11 | `apitest/idempotency_test.go TestAPIReuseDifferentBody` | EC-66 |
+| T-A-12 | `apitest/idempotency_test.go TestAPIKeyMissingOrInvalid` | EC-70 |
+| T-A-13 | `apitest/balance_test.go TestAPIAmountFormat` | EC-76 |
+| T-A-14 | `apitest/pagination_test.go TestAPILimitValidation` | EC-94 |
+| T-A-15 | `apitest/audit_test.go TestAPIFailuresNotAuditedButLogged` (slog-хендлер теста собирает записи) | EC-99 |
 | T-A-16 | `apitest/auth_test.go TestAPIStaleTokenVersion` | EC-105 |
 | T-A-17 | `apitest/auth_test.go TestAPILoginRateLimit` | EC-108 |
-| T-A-18 | `limits_test.go TestBodyTooLarge` | EC-113 |
-| T-A-19 | `limits_test.go TestUnknownFields` | EC-114 |
-| T-A-20 | `limits_test.go TestInvalidUUID` | EC-115 |
-| T-A-21 | `limits_test.go TestWriteRateLimit` | EC-116 |
+| T-A-18 | `apitest/limits_test.go TestAPIBodyTooLarge` | EC-113 |
+| T-A-19 | `apitest/limits_test.go TestAPIUnknownFields` | EC-114 |
+| T-A-20 | `apitest/limits_test.go TestAPIInvalidUUID` | EC-115 |
+| T-A-21 | `apitest/limits_test.go TestAPIWriteRateLimit` | EC-116 |
 | T-A-22 | `apitest/settings_test.go TestAPISettingsValidation` | EC-139 |
 | T-A-31 | `apitest/auth_test.go TestAPILoginAndCookieAttributes, TestAPICookieSecureIsConfigurable` | атрибуты cookie refresh: HttpOnly, SameSite=Strict, Path, Secure по конфигу | EC-107 |
 | T-A-32 | `apitest/auth_test.go TestAPILoginFailuresAreIdentical` | ответ входа одинаков для неверного пароля, неизвестного email и неактивного пользователя | EC-107 |
@@ -249,6 +250,24 @@ Unit-тесты адаптеров без БД (`adapter/authn`, `adapter/httpap
 | T-A-43 | `apitest/foreign_test.go TestAPIForeignNodeIsIndistinguishableFromMissing` | чужой узел неотличим от несуществующего (тела побайтно без `requestId`) на каждой операции узлов, участников и настроек | EC-54 |
 | T-A-44 | `apitest/harness_test.go TestAPIHarnessRunsAsApplicationRole` | стенд работает от роли `tb_app` |  |
 | T-A-45 | `apitest/errors_test.go TestAPIDatabaseErrorIsNotLeaked` | ошибка БД не попадает в тело ответа |  |
+| T-A-46 | `apitest/balance_test.go TestAPIBalanceRead` | чтение баланса |  |
+| T-A-47 | `apitest/balance_test.go TestAPICreditDebitFlow` | начисление и списание через HTTP |  |
+| T-A-48 | `apitest/balance_test.go TestAPITransferBothLegs` | перевод: обе ноги, общий transfer_id | EC-78 |
+| T-A-49 | `apitest/balance_test.go TestAPITransferNeedsBothNodes` | перевод требует права на обоих узлах |  |
+| T-A-50 | `apitest/balance_test.go TestAPIBusinessErrorsAreOpaque` | бизнес-ошибки (нехватка средств, лимит, запрет) без внутренних деталей | EC-74, EC-77, EC-81 |
+| T-A-51 | `apitest/balance_test.go TestAPIRefusedRequestLeavesNoTrace` | отказ не оставляет следов в балансе и аудите | EC-71 |
+| T-A-52 | `apitest/idempotency_test.go TestAPIConcurrentSameKey` | параллельные запросы с одним ключом дают одну операцию | EC-67, EC-68 |
+| T-A-54 | `apitest/operations_test.go TestAPIOperationsList` | список операций узла |  |
+| T-A-55 | `apitest/operations_test.go TestAPIOperationsPagination` | курсорная пагинация операций без повторов и пропусков | EC-92 |
+| T-A-56 | `apitest/operations_test.go TestAPIOperationsCursorIsStrict` | курсор привязан к узлу, фильтрам, области и читателю | EC-62 |
+| T-A-57 | `apitest/operations_test.go TestAPIGetOperation` | получение операции | EC-53 |
+| T-A-58 | `apitest/operations_test.go TestAPIForeignLedgerIsIndistinguishableFromMissing` | чужой баланс, операции и аудит неотличимы от несуществующих | EC-52, EC-53, EC-54 |
+| T-A-59 | `apitest/audit_test.go TestAPIAuditBeforeAfterWithoutSecrets` | аудит: before/after без секретов | EC-100 |
+| T-A-60 | `apitest/audit_test.go TestAPIAuditListFiltersAndCursor` | аудит: фильтры и курсор | EC-52, EC-62 |
+| T-A-61 | `apitest/operations_test.go TestAPILedgerActorIsNeverTakenFromTheRequest` | актор баланса и операций берётся только из токена |  |
+| T-A-62 | `apitest/report_api_test.go TestAPIReportSummary` | сводка отчёта по контракту |  |
+| T-A-63 | `apitest/report_api_test.go TestAPIReportChildren` | разбивка по детям по контракту |  |
+| T-A-64 | `apitest/report_api_test.go TestAPIReportInvalidPeriod` | невалидный период, пояс, гранулярность | EC-90 |
 
 Сценарные без EC: T-A-30 `TestHappyPathFullScenario` (логин -> создать дерево -> роли -> начисление/перевод -> отчёт -> аудит).
 

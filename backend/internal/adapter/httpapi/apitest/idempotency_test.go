@@ -114,7 +114,7 @@ func TestAPIKeyMissingOrInvalid(t *testing.T) {
 	requireStatus(t, admin.Post(nodeURL(w.A1u1, "/credits"), body, apitest.WithIdempotencyKey(longest)), http.StatusCreated)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-52
+// Test-ID: T-A-52
 // EC-67, EC-68: concurrent identical requests with one key make one operation
 // and every other answer is its replay; the same key of another user is an
 // independent request.

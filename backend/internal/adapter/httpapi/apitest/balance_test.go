@@ -16,7 +16,7 @@ import (
 	"github.com/Gwakko/tenant-backoffice/backend/internal/adapter/httpapi/gen"
 )
 
-// Proposed ID (not in spec 08 yet): T-A-46
+// Test-ID: T-A-46
 // The balance of a node: the amount is a string, the currency comes from the
 // installation, a node without operations has zero.
 func TestAPIBalanceRead(t *testing.T) {
@@ -39,7 +39,7 @@ func TestAPIBalanceRead(t *testing.T) {
 	requireStatus(t, s.Anon.Get(nodeURL(w.A1u1, "/balance")), http.StatusUnauthorized)
 }
 
-// Proposed ID (not in spec 08 yet): T-A-47
+// Test-ID: T-A-47
 // Credit and debit: 201, the stored operation, the new balance, the actor from
 // the token, one audit entry each.
 func TestAPICreditDebitFlow(t *testing.T) {
@@ -78,7 +78,7 @@ func TestAPICreditDebitFlow(t *testing.T) {
 	assert.Equal(t, 1, actions["balance.debited"])
 }
 
-// Proposed ID (not in spec 08 yet): T-A-48
+// Test-ID: T-A-48
 // A transfer answers with both legs, the same transfer id and the right
 // counterparties; both balances move together.
 func TestAPITransferBothLegs(t *testing.T) {
@@ -113,7 +113,7 @@ func TestAPITransferBothLegs(t *testing.T) {
 	assert.Equal(t, before, stateOf(t, s))
 }
 
-// Proposed ID (not in spec 08 yet): T-A-49
+// Test-ID: T-A-49
 // A transfer needs balance.transfer on both nodes: an unseen node is 404, a
 // seen one without the right is 403, and nothing changes in either case.
 func TestAPITransferNeedsBothNodes(t *testing.T) {
@@ -156,7 +156,7 @@ func TestAPIViewerCannotMoveMoney(t *testing.T) {
 	assert.Equal(t, before, stateOf(t, s))
 }
 
-// Proposed ID (not in spec 08 yet): T-A-50
+// Test-ID: T-A-50
 // The business refusals are plain: the documented code and status, the
 // standard problem fields only, a fixed text and no SQL or internal detail in
 // the body (EC-74, EC-77, EC-81).
@@ -248,7 +248,7 @@ func TestAPIAmountFormat(t *testing.T) {
 	assert.Equal(t, before, stateOf(t, s))
 }
 
-// Proposed ID (not in spec 08 yet): T-A-51
+// Test-ID: T-A-51
 // Atomicity through HTTP (EC-71, EC-80): a refused credit, debit or transfer
 // leaves no ledger, balance, audit or key row, and the key stays usable: after
 // the shortfall is covered the same request with the same key succeeds.
