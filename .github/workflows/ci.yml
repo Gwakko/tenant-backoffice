@@ -39,11 +39,11 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
-      # The web client does not exist yet (no lockfile to cache); add `cache: npm`
-      # and `cache-dependency-path: web/package-lock.json` with M5.x.
       - uses: actions/setup-node@v6
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
       # Installs the linter binary only; `make lint-go` runs it.
       - uses: golangci/golangci-lint-action@v9

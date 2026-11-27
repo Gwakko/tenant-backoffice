@@ -1,2 +1,4 @@
 /.env
 /keys/
+/web/node_modules/
+/web/dist/
