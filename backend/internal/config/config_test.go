@@ -58,3 +58,55 @@ func TestLoadDatabaseDefaultsAndOverrides(t *testing.T) {
 	require.EqualValues(t, 3, cfg.DB.MaxConns)
 	require.Equal(t, 2*time.Second, cfg.DB.StatementTimeout)
 }
+
+func TestLoadHTTPDefaultsAreSafe(t *testing.T) {
+	t.Setenv("TB_HTTP_ADDR", ":0")
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.EqualValues(t, 65536, cfg.HTTP.MaxBodyBytes)
+	require.False(t, cfg.HTTP.TrustForwardedFor)
+	require.Empty(t, cfg.HTTP.CursorKey)
+	require.Equal(t, time.Hour, cfg.HTTP.CursorTTL)
+	require.Equal(t, 5, cfg.Rate.LoginPairPerMin)
+	require.Equal(t, 20, cfg.Rate.LoginIPPerMin)
+	require.Equal(t, 60, cfg.Rate.MutationPerMin)
+	keys, err := cfg.HTTP.CursorKeys()
+	require.NoError(t, err)
+	require.Empty(t, keys)
+}
+
+func TestLoadCursorKeyValidation(t *testing.T) {
+	t.Setenv("TB_HTTP_ADDR", ":0")
+	good := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" // 32 bytes
+	t.Setenv("TB_CURSOR_KEY", good)
+	t.Setenv("TB_CURSOR_KEY_PREVIOUS", good)
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	keys, err := cfg.HTTP.CursorKeys()
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+
+	t.Setenv("TB_CURSOR_KEY", "c2hvcnQ=")
+	_, err = config.Load()
+	require.ErrorContains(t, err, "TB_CURSOR_KEY")
+
+	t.Setenv("TB_CURSOR_KEY", "!!not base64!!")
+	_, err = config.Load()
+	require.ErrorContains(t, err, "TB_CURSOR_KEY")
+
+	t.Setenv("TB_CURSOR_KEY", "")
+	_, err = config.Load()
+	require.ErrorContains(t, err, "TB_CURSOR_KEY_PREVIOUS")
+}
+
+func TestLoadRejectsBadHTTPAndRateSettings(t *testing.T) {
+	t.Setenv("TB_HTTP_ADDR", ":0")
+	t.Setenv("TB_HTTP_MAX_BODY_BYTES", "0")
+	_, err := config.Load()
+	require.ErrorContains(t, err, "TB_HTTP_MAX_BODY_BYTES")
+
+	t.Setenv("TB_HTTP_MAX_BODY_BYTES", "65536")
+	t.Setenv("TB_RATE_MUTATION_PER_MIN", "0")
+	_, err = config.Load()
+	require.ErrorContains(t, err, "TB_RATE_MUTATION_PER_MIN")
+}

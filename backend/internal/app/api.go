@@ -31,14 +31,24 @@ func BuildAPI(cfg config.Config) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	mux := http.NewServeMux()
+	clock := SystemClock{}
+	// The cursor codec is built now so that a bad key fails at startup; the
+	// handlers that use it arrive with M4.3.
+	if _, err := CursorCodec(cfg, clock, logger); err != nil {
+		return nil, err
+	}
+	opts := HTTPOptions(cfg, logger, clock, unwiredAuthenticator{})
 	// No readiness checks yet: /readyz stays 503 until the database is wired in.
-	httpapi.NewHealthHandler().Register(mux)
+	opts.Health = httpapi.NewHealthHandler()
+	handler, err := httpapi.NewServer(opts)
+	if err != nil {
+		return nil, err
+	}
 
 	return &API{
 		server: &http.Server{
 			Addr:              cfg.HTTPAddr,
-			Handler:           mux,
+			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
 		},
 		log: logger,

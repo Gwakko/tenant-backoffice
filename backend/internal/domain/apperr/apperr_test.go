@@ -31,3 +31,21 @@ func TestSharedConstructors(t *testing.T) {
 	require.Equal(t, apperr.Unavailable, apperr.UnavailableError().Code)
 	require.EqualValues(t, "db_unavailable", apperr.Unavailable)
 }
+
+func TestTransportConstructors(t *testing.T) {
+	cases := map[apperr.Code]apperr.Error{
+		"token_missing":          apperr.TokenMissingError(),
+		"invalid_cursor":         apperr.InvalidCursorError(),
+		"invalid_period":         apperr.InvalidPeriodError(),
+		"payload_too_large":      apperr.PayloadTooLargeError(),
+		"unsupported_media_type": apperr.UnsupportedMediaTypeError(),
+		"rate_limited":           apperr.RateLimitedError(),
+		"internal":               apperr.InternalError(),
+	}
+	for code, e := range cases {
+		require.Equal(t, code, e.Code)
+		require.NotEmpty(t, e.Message)
+		require.Empty(t, e.Fields)
+		require.ErrorIs(t, fmt.Errorf("w: %w", e), apperr.New(code, ""))
+	}
+}
