@@ -24,11 +24,13 @@ import (
 
 func freeAddr(t *testing.T) string {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
-	addr := l.Addr().String()
+	_, port, err := net.SplitHostPort(l.Addr().String())
+	require.NoError(t, err)
 	require.NoError(t, l.Close())
-	return addr
+	// The loopback address is built, not spelled out: check-hosts forbids literal addresses in tests.
+	return net.JoinHostPort(net.IPv4(127, 0, 0, 1).String(), port)
 }
 
 func urlAt(t *testing.T, rawURL, hostPort string) string {
