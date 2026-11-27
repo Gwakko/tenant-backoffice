@@ -17,7 +17,10 @@ func nodeDTO(v node.View) gen.Node {
 		EffectiveActive: v.EffectiveActive, ChildrenCount: v.ChildrenCount, Breadcrumbs: crumbs,
 		CreatedAt: n.CreatedAt.UTC(), UpdatedAt: n.UpdatedAt.UTC(),
 	}
-	if n.ParentID != nil {
+	// The breadcrumbs end at the node and start at the actor's access root. A
+	// node that is the access root has a parent the actor may not see, and its
+	// id is not revealed either (spec 03 GET /nodes/{id}, EC-30): parentId is null.
+	if n.ParentID != nil && len(v.Breadcrumbs) > 1 {
 		p := uid(*n.ParentID)
 		out.ParentId = &p
 	}
